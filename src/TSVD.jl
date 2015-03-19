@@ -1,3 +1,4 @@
+# Copyright 2015 Andreas Noack
 module TSVD
 
     export tsvd
