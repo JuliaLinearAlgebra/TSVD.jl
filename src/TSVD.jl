@@ -6,6 +6,11 @@ module TSVD
     using Base.BLAS
     using Base.LinAlg: givensAlgorithm
 
+    if VERSION < VersionNumber(0,4)
+        using Base.BLAS: gemv!
+        using Docile
+    end
+
     import Base.real
     import Base.LinAlg: A_mul_B!, Ac_mul_B!, BlasComplex, BlasFloat, BlasReal
 
@@ -186,7 +191,7 @@ The output of the procesure it the truple tuple `(U,s,V)`
         hasConv = false
         while cc <= maxIter
             _, _, _, _, _, _, reorth_b, _ = bidiag(A, steps, initVec, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
-            vals1 = LinAlg.svdvals(Bidiagonal([αs; z], βs, false))
+            vals1 = Base.LinAlg.svdvals(Bidiagonal([αs; z], βs, false))
             if vals0[nVals]*(1 - tolConv) < vals1[nVals] < vals0[nVals]*(1 + tolConv)
                 hasConv = true
                 break
