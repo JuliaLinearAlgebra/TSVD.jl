@@ -6,7 +6,7 @@ module TSVD
     using Base.BLAS
     using Base.LinAlg: givensAlgorithm
 
-    if VERSION < VersionNumber(0,4)
+    if VERSION < v"0.4-"
         using Base.BLAS: gemv!
         using Docile
     end
@@ -230,6 +230,6 @@ The output of the procesure it the truple tuple `(U,s,V)`
         mVt::Matrix{Tv} = vcat([v' for v in V]...)
         smU, sms, smV = svd(Bidiagonal(αs, βs[1:end-1], true))
 
-        (mU*smU)[:,1:nVals], sms[1:nVals], (mVt'smV)[:,1:nVals]
+        (mU*smU)[:,1:nVals], sms[1:nVals], (mVt'smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mVt
     end
 end
