@@ -25,7 +25,7 @@ module TSVD
     Ac_mul_B!{T<:BlasReal}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = gemv!('T', convert(T, α), A, x, convert(T, β), y)
     Ac_mul_B!{T<:BlasComplex}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = gemv!('C', convert(T, α), A, x, convert(T, β), y)
 
-    function A_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)
+    function A_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y::StridedVector)
         n = length(y)
         for i = 1:n
             y[i] *= β
@@ -38,7 +38,7 @@ module TSVD
         return y
     end
 
-    function Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)
+    function Ac_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y::StridedVector)
         n = length(y)
         for i = 1:n
             y[i] *= β
@@ -51,15 +51,12 @@ module TSVD
         return y
     end
 
-    function bidiag(
-        A,
-        steps,
-        initVec,
-        τ = eps(real(eltype(A)))*countnz(A)/mean(size(A))*normA,
+    function bidiag(A, steps, initVec,
+        τ = eps(real(eltype(A)))*countnz(A)/mean(size(A))*norm(A, Inf),
         αs = Array(real(eltype(A)), 0),
         βs = Array(real(eltype(A)), 0),
-        U = Array(Vector{eltype(A)}, 0),
-        V = Array(Vector{eltype(A)}, 0),
+        U = [],
+        V = [],
         μs = ones(real(eltype(A)), 1),
         νs = Array(real(eltype(A)), 0),
         reorth_in = false,
@@ -80,7 +77,8 @@ module TSVD
 
         if iter == 0
             u = copy(initVec)
-            v = zeros(eltype(A), size(A, 2))
+            v = similar(u, (size(A, 2),))
+            fill!(v, 0)
             β = norm(u)
             scale!(u, inv(β))
             push!(U, copy(u))
@@ -221,27 +219,20 @@ The output of the procesure it the truple tuple `(U,s,V)`
         tolError = 0.0) # The ω recurrence is still not fine tunes so we do full reorthogonalization
 
         Tv = eltype(initVec)
-        Ts = real(Tv)
+        Tr = real(Tv)
 
         # error estimate used in ω recurrence
-        τ = eps(Ts)*countnz(A)/mean(size(A))*norm(A, 1)
+        τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, 1)
 
         # I need to append βs with a zero at each iteration. Tt is much easier for type inference if it is a vector with the right element type
-        z = zeros(Ts, 1)
+        z = zeros(Tr, 1)
 
         # Iteration count and step size
         cc = max(5, nVals)
         steps = 2
 
-        αs::Vector{Ts},
-        βs::Vector{Ts},
-        U::Vector{Vector{Tv}},
-        V::Vector{Vector{Tv}},
-        μs::Vector{Ts},
-        νs::Vector{Ts},
-        reorth_b::Bool,
-        _ =
-        bidiag(A, cc, initVec, τ, Array(Ts, 0), Array(Ts, 0), Array(Vector{Tv}, 0), Array(Vector{Tv}, 0), ones(Ts, 1), Array(Ts, 0), false, tolError)
+        αs, βs, U, V, μs, νs, reorth_b, _ = bidiag(A, cc, initVec, τ, Array(Tr, 0), Array(Tr, 0), [], [], ones(Tr, 1), Array(Tr, 0), false, tolError)
+
         vals0 = svdvals(Bidiagonal([αs; z], βs, false))
         vals1 = vals0
 
@@ -267,12 +258,12 @@ The output of the procesure it the truple tuple `(U,s,V)`
             c, s, αs[j] = givensAlgorithm(αs[j], βs[j])
 
             # Update left vector
-            for i = 1:m
-                uij       = U[j][i]
-                uij1      = U[j+1][i]
-                U[j][i]   = uij*c + uij1*s'
-                U[j+1][i] = uij1*c - uij*s
-            end
+            # for i = 1:m
+            #     uij       = U[j][i]
+            #     uij1      = U[j+1][i]
+            #     U[j][i]   = uij*c + uij1*s'
+            #     U[j+1][i] = uij1*c - uij*s
+            # end
 
             # Update bidiagonal matrix
             if j < length(αs)
@@ -283,10 +274,11 @@ The output of the procesure it the truple tuple `(U,s,V)`
         end
 
         # Calculate the bidiagonal SVD and update U and V
-        mU::Matrix{Tv}  = hcat(U[1:end-1]...)
-        mVt::Matrix{Tv} = vcat([v' for v in V]...)
+        # mU::Matrix{Tv}  = hcat(U[1:end-1]...)
+        # mVt::Matrix{Tv} = vcat([v' for v in V]...)
         smU, sms, smV = svd(Bidiagonal(αs, βs[1:end-1], true))
 
-        (mU*smU)[:,1:nVals], sms[1:nVals], (mVt'smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mVt
+        # (mU*smU)[:,1:nVals], sms[1:nVals], (mVt'smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mVt
+        U, sms[1:nVals], V
     end
 end
