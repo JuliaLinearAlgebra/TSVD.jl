@@ -152,7 +152,7 @@ the identity or the conjugate transpose of `A`.
 
 - `nVals`: The number of singular values and vectors to compute. Default is one (the largest).
 
-- `maxIter': The maximum number of iterations of the Lanczos bidiagonalization. Default is 1000, but usually much fewer iterations are needed.
+- `maxIter`: The maximum number of iterations of the Lanczos bidiagonalization. Default is 1000, but usually much fewer iterations are needed.
 
 - `initVec`: Initial `U` vector for the Lanczos procesdure. Default is a real vector of real Gaussian random variates. Should have the same element type as the operator `A`.
 
