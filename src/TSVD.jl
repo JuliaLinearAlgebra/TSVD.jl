@@ -6,30 +6,75 @@ module TSVD
     using Base.BLAS
     using Base.LinAlg: givensAlgorithm
 
-    if VERSION < v"0.4-"
-        using Base.BLAS: gemv!
-        using Docile
-    end
-
-    import Base.real
     import Base.LinAlg: A_mul_B!, Ac_mul_B!, BlasComplex, BlasFloat, BlasReal
+    import Base.LinAlg: axpy!
 
-    real{T<:FloatingPoint}(::Type{T}) = T
-    real{T<:FloatingPoint}(::Type{Complex{T}}) = T
+    # Necessary to handle quaternions
+    function axpy!(α, x::AbstractArray, y::AbstractArray)
+        n = length(x)
+        if n != length(y)
+            throw(DimensionMismatch("x has length $n, but y has length $(length(y))"))
+        end
+        for i = 1:n
+            @inbounds y[i] += x[i]*α
+        end
+        y
+    end
 
     A_mul_B!{T<:BlasFloat}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = gemv!('N', convert(T, α), A, x, convert(T, β), y)
     Ac_mul_B!{T<:BlasReal}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = gemv!('T', convert(T, α), A, x, convert(T, β), y)
     Ac_mul_B!{T<:BlasComplex}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = gemv!('C', convert(T, α), A, x, convert(T, β), y)
 
-    function bidiag{T<:Real}(A::Union(AbstractMatrix{T}, AbstractMatrix{Complex{T}}), steps, initVec, τ = eps(T)*countnz(A)/mean(size(A))*normA, αs = Array(T, 0), βs = Array(T, 0), U = Array(Vector{eltype(A)}, 0), V = Array(Vector{eltype(A)}, 0), μs = ones(T, 1), νs = Array(T, 0), reorth_in = false, tolError::Float64 = 1e-12)
+    function A_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)
+        n = length(y)
+        for i = 1:n
+            y[i] *= β
+        end
+        for i = 1:n
+            for l = 1:size(A,2)
+                y[i] += α*A[i,l]*x[l]
+            end
+        end
+        return y
+    end
+
+    function Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)
+        n = length(y)
+        for i = 1:n
+            y[i] *= β
+        end
+        for i = 1:n
+            for l = 1:size(A,2)
+                y[i] += α*A[l,i]'*x[l]
+            end
+        end
+        return y
+    end
+
+    function bidiag(
+        A,
+        steps,
+        initVec,
+        τ = eps(real(eltype(A)))*countnz(A)/mean(size(A))*normA,
+        αs = Array(real(eltype(A)), 0),
+        βs = Array(real(eltype(A)), 0),
+        U = Array(Vector{eltype(A)}, 0),
+        V = Array(Vector{eltype(A)}, 0),
+        μs = ones(real(eltype(A)), 1),
+        νs = Array(real(eltype(A)), 0),
+        reorth_in = false,
+        tolError = 1e-12)
 
         m, n = size(A)
         reorth_b = reorth_in
         nReorth = 0
         nReorthVecs = 0
 
-        maxνs = T[]
-        maxμs = T[]
+        T = eltype(A)
+        Tr = real(T)
+
+        maxνs = Tr[]
+        maxμs = Tr[]
 
         iter = length(αs)
 
@@ -49,7 +94,7 @@ module TSVD
 
             # The v step
             ## apply operator
-            Ac_mul_B!(one(T), A, u, -β, v)
+            Ac_mul_B!(one(Tr), A, u, -β, v)
             α = norm(v)
 
             ## run ω recurrence
@@ -73,7 +118,7 @@ module TSVD
                 for l = 1:2
                 for i = reorth_ν
                     axpy!(-Base.dot(V[i], v), V[i], v)
-                    νs[i] = 2eps(T)
+                    νs[i] = 2eps(Tr)
                     nReorthVecs += 1
                 end
                 end
@@ -95,7 +140,7 @@ module TSVD
             reorth_μ = Int[]
             for i = 1:j
                 # τ = eps(T)*(hypot(α, β) + hypot(αs[i], (i == j ? β : βs[i]))) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
-                μ = αs[i]*νs[i] + (i > 1 ? βs[i - 1]*νs[i-1] : zero(T)) - α*μs[i]
+                μ = αs[i]*νs[i] + (i > 1 ? βs[i - 1]*νs[i-1] : zero(Tr)) - α*μs[i]
                 μ = (μ + copysign(τ, μ))/β
                 if abs(μ) > tolError
                     push!(reorth_μ, i)
@@ -110,7 +155,7 @@ module TSVD
                 for l = 1:2
                 for i = reorth_μ
                     axpy!(-Base.dot(U[i], u), U[i], u)
-                    μs[i] = 2eps(T)
+                    μs[i] = 2eps(Tr)
                     nReorthVecs += 1
                 end
                 end
@@ -168,7 +213,12 @@ The output of the procesure it the truple tuple `(U,s,V)`
 - `s`: Vector of length `nVals` of the singular values of `A`.
 - `V`: `size(A,2)` times `nVals` matrix of right singular vectors.
     """ ->
-    function tsvd(A, nVals = 1, maxIter = 1000, initVec = convert(Vector{eltype(A)}, randn(size(A,1))); tolConv = 1e-12, tolError = 0.0) # The ω recurrence is still not fine tunes so we do full reorthogonalization
+    function tsvd(A,
+        nVals = 1,
+        maxIter = 1000,
+        initVec = convert(Vector{eltype(A)}, randn(size(A,1)));
+        tolConv = 1e-12,
+        tolError = 0.0) # The ω recurrence is still not fine tunes so we do full reorthogonalization
 
         Tv = eltype(initVec)
         Ts = real(Tv)
@@ -183,8 +233,15 @@ The output of the procesure it the truple tuple `(U,s,V)`
         cc = max(5, nVals)
         steps = 2
 
-
-        αs::Vector{Ts}, βs::Vector{Ts}, U::Vector{Vector{Tv}}, V::Vector{Vector{Tv}}, μs::Vector{Ts}, νs::Vector{Ts}, reorth_b::Bool, _ = bidiag(A, cc, initVec, τ, Array(Ts, 0), Array(Ts, 0), Array(Vector{Tv}, 0), Array(Vector{Tv}, 0), ones(Ts, 1), Array(Ts, 0), false, tolError)
+        αs::Vector{Ts},
+        βs::Vector{Ts},
+        U::Vector{Vector{Tv}},
+        V::Vector{Vector{Tv}},
+        μs::Vector{Ts},
+        νs::Vector{Ts},
+        reorth_b::Bool,
+        _ =
+        bidiag(A, cc, initVec, τ, Array(Ts, 0), Array(Ts, 0), Array(Vector{Tv}, 0), Array(Vector{Tv}, 0), ones(Ts, 1), Array(Ts, 0), false, tolError)
         vals0 = svdvals(Bidiagonal([αs; z], βs, false))
         vals1 = vals0
 
