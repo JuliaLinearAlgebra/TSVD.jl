@@ -6,8 +6,24 @@ module TSVD
     using Base.BLAS
     using Base.LinAlg: givensAlgorithm
 
+    import Base: hcat
     import Base.LinAlg: A_mul_B!, Ac_mul_B!, BlasComplex, BlasFloat, BlasReal
     import Base.LinAlg: axpy!
+
+    function hcat{T<:AbstractVecOrMat}(x::Vector{T})
+        l    = length(x)
+        if l == 0
+            throw(ArgumentError("cannot flatten empty vector"))
+        else
+            x1   = x[1]
+            m, n = size(x1, 1), size(x1, 2)
+            B    = similar(x1, eltype(x1), (m, l*n))
+            for i = 1:l
+                B[:, (i - 1)*n + 1:i*n] = x[i]
+            end
+            return B
+        end
+    end
 
     # Necessary to handle quaternions
     function axpy!(α, x::AbstractArray, y::AbstractArray)
@@ -92,7 +108,7 @@ module TSVD
 
             # The v step
             ## apply operator
-            Ac_mul_B!(one(Tr), A, u, -β, v)
+            Ac_mul_B!(one(T), A, u, T(-β), v)
             α = norm(v)
 
             ## run ω recurrence
@@ -131,7 +147,7 @@ module TSVD
 
             # The u step
             ## apply operator
-            A_mul_B!(one(T), A, v, -α, u)
+            A_mul_B!(one(T), A, v, T(-α), u)
             β = norm(u)
 
             ## run ω recurrence
@@ -231,7 +247,13 @@ The output of the procesure it the truple tuple `(U,s,V)`
         cc = max(5, nVals)
         steps = 2
 
-        αs, βs, U, V, μs, νs, reorth_b, _ = bidiag(A, cc, initVec, τ, Array(Tr, 0), Array(Tr, 0), [], [], ones(Tr, 1), Array(Tr, 0), false, tolError)
+        αs::Vector{Tr},
+        βs::Vector{Tr},
+        U::Vector{typeof(initVec)},
+        V::Vector{typeof(initVec)},
+        μs::Vector{Tr},
+        νs::Vector{Tr},
+        reorth_b::Bool, _ = bidiag(A, cc, initVec, τ, Array(Tr, 0), Array(Tr, 0), typeof(initVec)[], typeof(initVec)[], ones(Tr, 1), Array(Tr, 0), false, tolError)
 
         vals0 = svdvals(Bidiagonal([αs; z], βs, false))
         vals1 = vals0
@@ -252,33 +274,36 @@ The output of the procesure it the truple tuple `(U,s,V)`
         end
 
         # Form upper bidiagonal square matrix
-        m = length(U[1])
-        for j = 1:length(αs)
-            # Calculate Givens rotation
-            c, s, αs[j] = givensAlgorithm(αs[j], βs[j])
+        # m = length(U[1])
+        # for j = 1:length(αs)
+        #     # Calculate Givens rotation
+        #     c, s, αs[j] = givensAlgorithm(αs[j], βs[j])
 
-            # Update left vector
-            # for i = 1:m
-            #     uij       = U[j][i]
-            #     uij1      = U[j+1][i]
-            #     U[j][i]   = uij*c + uij1*s'
-            #     U[j+1][i] = uij1*c - uij*s
-            # end
+        #     # Update left vector
+        #     # for i = 1:m
+        #     #     uij       = U[j][i]
+        #     #     uij1      = U[j+1][i]
+        #     #     U[j][i]   = uij*c + uij1*s'
+        #     #     U[j+1][i] = uij1*c - uij*s
+        #     # end
 
-            # Update bidiagonal matrix
-            if j < length(αs)
-                αj1 = αs[j + 1]
-                αs[j + 1] = c*αj1
-                βs[j] = s*αj1
-            end
-        end
+        #     # Update bidiagonal matrix
+        #     if j < length(αs)
+        #         αj1 = αs[j + 1]
+        #         αs[j + 1] = c*αj1
+        #         βs[j] = s*αj1
+        #     end
+        # end
 
         # Calculate the bidiagonal SVD and update U and V
-        # mU::Matrix{Tv}  = hcat(U[1:end-1]...)
-        # mVt::Matrix{Tv} = vcat([v' for v in V]...)
-        smU, sms, smV = svd(Bidiagonal(αs, βs[1:end-1], true))
+        mU = hcat(U[1:end-1])
+        mV = hcat(V)
+        B = Bidiagonal(αs, βs[1:end-1], true)
+        smU, sms, smV = svd(B)
 
-        # (mU*smU)[:,1:nVals], sms[1:nVals], (mVt'smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mVt
-        U, sms[1:nVals], V
+        return smU[:,1:nVals], sms[1:nVals], smV[:,1:nVals], B, mV, mU
+
+        # (mU*smU)[:,1:nVals], sms[1:nVals], (mV*smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mV
+        # U, sms[1:nVals], V
     end
 end
