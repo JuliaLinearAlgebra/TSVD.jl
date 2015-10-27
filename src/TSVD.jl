@@ -67,7 +67,7 @@ module TSVD
         return y
     end
 
-    function bidiag(A, steps, initVec,
+    function bidiag(A, steps,
         τ = eps(real(eltype(A)))*countnz(A)/mean(size(A))*norm(A, Inf),
         αs = Array(real(eltype(A)), 0),
         βs = Array(real(eltype(A)), 0),
@@ -91,15 +91,12 @@ module TSVD
 
         iter = length(αs)
 
+        u = copy(U[iter + 1])
         if iter == 0
-            u = copy(initVec)
-            v = similar(u, (size(A, 2),))
-            fill!(v, 0)
-            β = norm(u)
-            scale!(u, inv(β))
-            push!(U, copy(u))
+            v = similar(u, size(A, 2))
+            v = fill!(v,0)
+            β = zero(eltype(βs))
         else
-            u = copy(U[iter + 1])
             v = copy(V[iter])
             β = βs[iter]
         end
@@ -114,7 +111,7 @@ module TSVD
             ## run ω recurrence
             reorth_ν = Int[]
             for i = 1:j - 1
-                # τ = eps(T)*(hypot(α, β) + hypot(αs[i], βs[i])) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
+                # τ = eps(T)*(hypot(α, β) + hypot(αs[i], βs[i - 1])) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
                 ν = βs[i]*μs[i + 1] + αs[i]*μs[i] - β*νs[i]
                 ν = (ν + copysign(τ, ν))/α
                 if abs(ν) > tolError
@@ -140,7 +137,7 @@ module TSVD
                 reorth_b = !reorth_b
             end
 
-            ## update the rsult vectors
+            ## update the result vectors
             push!(αs, α)
             scale!(v, inv(α))
             push!(V, copy(v)) # copy to avoid aliasing
@@ -187,7 +184,7 @@ module TSVD
         αs, βs, U, V, μs, νs, reorth_b, maxμs, maxνs, nReorth, nReorthVecs
     end
 
-    @doc """
+    """
 ## tsvd(A, [nVals = 1, maxIter = 1000, initVec = randn(m), tolConv = 1e-12, tolError = 0.0])
 
 Computes the truncated singular value decomposition (TSVD) by Lanczos bidiagonalization of the operator `A`. The Lanczos vectors are partially orthogonalized as described in
@@ -226,7 +223,7 @@ The output of the procesure it the truple tuple `(U,s,V)`
 - `U`: `size(A,1)` times `nVals` matrix of left singular vectors.
 - `s`: Vector of length `nVals` of the singular values of `A`.
 - `V`: `size(A,2)` times `nVals` matrix of right singular vectors.
-    """ ->
+    """
     function tsvd(A,
         nVals = 1,
         maxIter = 1000,
@@ -247,20 +244,30 @@ The output of the procesure it the truple tuple `(U,s,V)`
         cc = max(5, nVals)
         steps = 2
 
+        # initialize the αs, βs, U and V. Use result of first matvec to infer the correct types.
+        nrmInit = norm(initVec)
+        v = A'initVec
+        α = norm(v)/nrmInit # only used to infer the type. Could be saved, but would require restructuring of bidiagonal method
+        αs = fill(α, 0)
+        βs = fill(α, 0)
+        U = fill(convert(typeof(v), scale(initVec, inv(nrmInit))), 1)
+        V = fill(v, 0)
+
+        # return types can only be inferred by man, not the machine
         αs::Vector{Tr},
         βs::Vector{Tr},
-        U::Vector{typeof(initVec)},
-        V::Vector{typeof(initVec)},
+        U::Vector{typeof(v)}, # for some reason typeof(U) doesn't work here
+        V::Vector{typeof(v)},
         μs::Vector{Tr},
         νs::Vector{Tr},
-        reorth_b::Bool, _ = bidiag(A, cc, initVec, τ, Array(Tr, 0), Array(Tr, 0), typeof(initVec)[], typeof(initVec)[], ones(Tr, 1), Array(Tr, 0), false, tolError)
+        reorth_b::Bool, _ = bidiag(A, cc, τ, αs, βs, U, V, ones(Tr, 1), Array(Tr, 0), false, tolError)
 
         vals0 = svdvals(Bidiagonal([αs; z], βs, false))
         vals1 = vals0
 
         hasConv = false
         while cc <= maxIter
-            _, _, _, _, _, _, reorth_b, _ = bidiag(A, steps, initVec, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
+            _, _, _, _, _, _, reorth_b, _ = bidiag(A, steps, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
             vals1 = Base.LinAlg.svdvals(Bidiagonal([αs; z], βs, false))
             if vals0[nVals]*(1 - tolConv) < vals1[nVals] < vals0[nVals]*(1 + tolConv)
                 hasConv = true
@@ -301,9 +308,6 @@ The output of the procesure it the truple tuple `(U,s,V)`
         B = Bidiagonal(αs, βs[1:end-1], true)
         smU, sms, smV = svd(B)
 
-        return smU[:,1:nVals], sms[1:nVals], smV[:,1:nVals], B, mV, mU
-
-        # (mU*smU)[:,1:nVals], sms[1:nVals], (mV*smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mV
-        # U, sms[1:nVals], V
+        return (mU*smU)[:,1:nVals], sms[1:nVals], (mV*smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mV
     end
 end
