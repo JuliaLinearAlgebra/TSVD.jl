@@ -235,7 +235,7 @@ The output of the procesure it the truple tuple `(U,s,V)`
         Tr = real(Tv)
 
         # error estimate used in ω recurrence
-        τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, 1)
+        τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, Inf)
 
         # I need to append βs with a zero at each iteration. Tt is much easier for type inference if it is a vector with the right element type
         z = zeros(Tr, 1)
