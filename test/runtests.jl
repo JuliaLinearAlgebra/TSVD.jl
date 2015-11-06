@@ -12,7 +12,7 @@ for A in (randn(m, n),
     vals = svdvals(full(A))
 
     for k = 1:5
-        U, s, V, _ = tsvd(A, k)
+        U, s, V = tsvd(A, k)
         @test_approx_eq s vals[1:k]
     end
 end
