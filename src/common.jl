@@ -1,3 +1,12 @@
+# maximum in base doesn't work for empty vectors
+function maximum(x::Vector{UInt})
+    mx = UInt(0)
+    @inbounds for xx in x
+        mx = max(mx, xx)
+    end
+    return mx
+end
+
 function hcat{T<:AbstractVecOrMat}(x::Vector{T})
     l    = length(x)
     if l == 0
