@@ -67,21 +67,14 @@ module TSVD
         return y
     end
 
-    function bidiag(A, steps,
-        τ = eps(real(eltype(A)))*countnz(A)/mean(size(A))*norm(A, Inf),
-        αs = Array(real(eltype(A)), 0),
-        βs = Array(real(eltype(A)), 0),
-        U = [],
-        V = [],
-        μs = ones(real(eltype(A)), 1),
-        νs = Array(real(eltype(A)), 0),
-        reorth_in = false,
-        tolError = 1e-12)
+    function bidiag(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, tolError)
 
         m, n = size(A)
         reorth_b = reorth_in
         nReorth = 0
         nReorthVecs = 0
+
+        normA = norm(A, Inf)
 
         T = eltype(A)
         Tr = real(T)
@@ -91,21 +84,25 @@ module TSVD
 
         iter = length(αs)
 
-        u = copy(U[iter + 1])
-        if iter == 0
-            v = similar(u, size(A, 2))
-            v = fill!(v,0)
-            β = zero(eltype(βs))
-        else
-            v = copy(V[iter])
-            β = βs[iter]
-        end
+        u = U[iter + 1]
+        # if iter == 0
+        #     v = similar(u, size(A, 2))
+        #     v = fill!(v,0)
+        #     β = zero(eltype(βs))
+        # else
+        #     v = copy(V[iter])
+        #     β = βs[iter]
+        # end
+        v = V[iter]
+        β = βs[iter]
 
         for j = iter + (1:steps)
 
             # The v step
+            vOld = v
             ## apply operator
-            Ac_mul_B!(one(T), A, u, T(-β), v)
+            v = A'u
+            axpy!(T(-β), vOld, v)
             α = norm(v)
 
             ## run ω recurrence
@@ -126,12 +123,15 @@ module TSVD
 
             ## reorthogonalize if necessary
             if reorth_b || length(reorth_ν) > 0
-                for l = 1:2
-                for i = reorth_ν
+                # for i = reorth_ν
+                #     axpy!(-Base.dot(V[i], v), V[i], v)
+                #     νs[i] = 2eps(Tr)
+                #     nReorthVecs += 1
+                # end
+                for i = 1:j - 1
                     axpy!(-Base.dot(V[i], v), V[i], v)
-                    νs[i] = 2eps(Tr)
+                    νs[i] = eps(Tr)
                     nReorthVecs += 1
-                end
                 end
                 α = norm(v)
                 reorth_b = !reorth_b
@@ -140,18 +140,23 @@ module TSVD
             ## update the result vectors
             push!(αs, α)
             scale!(v, inv(α))
-            push!(V, copy(v)) # copy to avoid aliasing
+            push!(V, v)
 
             # The u step
+            uOld = u
             ## apply operator
-            A_mul_B!(one(T), A, v, T(-α), u)
+            u = A*v
+            axpy!(T(-α), uOld, u)
             β = norm(u)
 
             ## run ω recurrence
             reorth_μ = Int[]
             for i = 1:j
                 # τ = eps(T)*(hypot(α, β) + hypot(αs[i], (i == j ? β : βs[i]))) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
-                μ = αs[i]*νs[i] + (i > 1 ? βs[i - 1]*νs[i-1] : zero(Tr)) - α*μs[i]
+                μ = αs[i]*νs[i] - α*μs[i]
+                if i > 1
+                    μ += βs[i - 1]*νs[i-1]
+                end
                 μ = (μ + copysign(τ, μ))/β
                 if abs(μ) > tolError
                     push!(reorth_μ, i)
@@ -163,12 +168,15 @@ module TSVD
 
             ## reorthogonalize if necessary
             if reorth_b || length(reorth_μ) > 0
-                for l = 1:2
-                for i = reorth_μ
+                # for i in reorth_μ
+                #     axpy!(-Base.dot(U[i], u), U[i], u)
+                #     μs[i] = 2eps(Tr)
+                #     nReorthVecs += 1
+                # end
+                for i in 1:j
                     axpy!(-Base.dot(U[i], u), U[i], u)
-                    μs[i] = 2eps(Tr)
+                    μs[i] = eps(Tr)
                     nReorthVecs += 1
-                end
                 end
                 β = norm(u)
                 reorth_b = !reorth_b
@@ -178,7 +186,7 @@ module TSVD
             ## update the result vectors
             push!(βs, β)
             scale!(u, inv(β))
-            push!(U, copy(u)) # copy to avoid aliasing
+            push!(U, u)
         end
 
         αs, βs, U, V, μs, νs, reorth_b, maxμs, maxνs, nReorth, nReorthVecs
@@ -229,29 +237,47 @@ The output of the procesure it the truple tuple `(U,s,V)`
         maxIter = 1000,
         initVec = convert(Vector{eltype(A)}, randn(size(A,1)));
         tolConv = 1e-12,
-        tolError = 0.0) # The ω recurrence is still not fine tunes so we do full reorthogonalization
+        tolError = eps(real(eltype(A)))) # The ω recurrence is still not fine tunes so we do full reorthogonalization
 
         Tv = eltype(initVec)
         Tr = real(Tv)
 
         # error estimate used in ω recurrence
-        τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, Inf)
+        # τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, Inf)
+        τ = eps(Tr)*norm(A, Inf)
 
         # I need to append βs with a zero at each iteration. Tt is much easier for type inference if it is a vector with the right element type
         z = zeros(Tr, 1)
 
         # Iteration count and step size
         cc = max(5, nVals)
-        steps = 2
+        steps = 5
 
         # initialize the αs, βs, U and V. Use result of first matvec to infer the correct types.
+        # So the first iteration is run here, but slightly differently from the rest of the iterations
         nrmInit = norm(initVec)
         v = A'initVec
-        α = norm(v)/nrmInit # only used to infer the type. Could be saved, but would require restructuring of bidiagonal method
-        αs = fill(α, 0)
-        βs = fill(α, 0)
-        U = fill(convert(typeof(v), scale(initVec, inv(nrmInit))), 1)
-        V = fill(v, 0)
+        scale!(v, inv(nrmInit))
+        α = norm(v)
+        scale!(v, inv(α))
+        V = fill(v, 1)
+        αs = fill(α, 1)
+        ν = 1 + τ/abs(α)
+
+        u = A*v
+        uOld = similar(u)
+        copy!(uOld, initVec)
+        scale!(uOld, inv(nrmInit))
+        axpy!(eltype(u)(-α), uOld, u)
+        β = norm(u)
+        scale!(u, inv(β))
+        U = typeof(u)[uOld, u]
+        βs = fill(β, 1)
+        μ = τ/β
+
+        # Arrays for saving the estimates of the maximum angles between Lanczos vectors
+        maxμs = Tr[]
+        maxνs = Tr[]
 
         # return types can only be inferred by man, not the machine
         αs::Vector{Tr},
@@ -260,14 +286,20 @@ The output of the procesure it the truple tuple `(U,s,V)`
         V::Vector{typeof(v)},
         μs::Vector{Tr},
         νs::Vector{Tr},
-        reorth_b::Bool, _ = bidiag(A, cc, τ, αs, βs, U, V, ones(Tr, 1), Array(Tr, 0), false, tolError)
+        reorth_b::Bool, maxμ, maxν, _ = bidiag(A, cc, τ, αs, βs, U, V, [μ, 1], [one(μ)], false, tolError)
+
+        # Save the estimates of the maximum angles between Lanczos vectors
+        append!(maxμs, maxμ)
 
         vals0 = svdvals(Bidiagonal([αs; z], βs, false))
         vals1 = vals0
 
         hasConv = false
         while cc <= maxIter
-            _, _, _, _, _, _, reorth_b, _ = bidiag(A, steps, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
+            _, _, _, _, _, _, reorth_b, maxμ, maxν, _ = bidiag(A, steps, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
+            append!(maxμs, maxμ)
+            append!(maxνs, maxν)
+
             vals1 = Base.LinAlg.svdvals(Bidiagonal([αs; z], βs, false))
             if vals0[nVals]*(1 - tolConv) < vals1[nVals] < vals0[nVals]*(1 + tolConv)
                 hasConv = true
@@ -308,6 +340,13 @@ The output of the procesure it the truple tuple `(U,s,V)`
         B = Bidiagonal(αs, βs[1:end-1], true)
         smU, sms, smV = svd(B)
 
-        return (mU*smU)[:,1:nVals], sms[1:nVals], (mV*smV)[:,1:nVals], Bidiagonal(αs, βs[1:end-1], true), mU, mV
+        return (mU*smU)[:,1:nVals],
+            sms[1:nVals],
+            (mV*smV)[:,1:nVals],
+            Bidiagonal(αs, βs[1:end-1], true),
+            mU,
+            mV,
+            maxμs,
+            maxνs
     end
 end
