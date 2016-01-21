@@ -29,13 +29,13 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         α = norm(v)
 
         ## run ω recurrence
-        reorth_ν = Int[]
+        found_inaccurate = false
         for i = 1:j - 1
             # τ = eps(T)*(hypot(α, β) + hypot(αs[i], βs[i - 1])) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
             ν = βs[i]*μs[i + 1] + αs[i]*μs[i] - β*νs[i]
             ν = (ν + copysign(τ, ν))/α
             if abs(ν) > tolError
-                push!(reorth_ν, i)
+                found_inaccurate = true
             end
             νs[i] = ν
         end
@@ -45,7 +45,7 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         push!(νs, 1)
 
         ## reorthogonalize if necessary
-        if reorth_b || length(reorth_ν) > 0
+        if reorth_b || found_inaccurate
             for i = 1:j - 1
                 axpy!(-Base.dot(V[i], v), V[i], v)
                 νs[i] = eps(Tr)
@@ -68,7 +68,7 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         β = norm(u)
 
         ## run ω recurrence
-        reorth_μ = Int[]
+        found_inaccurate = false
         for i = 1:j
             # τ = eps(T)*(hypot(α, β) + hypot(αs[i], (i == j ? β : βs[i]))) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
             μ = αs[i]*νs[i] - α*μs[i]
@@ -77,7 +77,7 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
             end
             μ = (μ + copysign(τ, μ))/β
             if abs(μ) > tolError
-                push!(reorth_μ, i)
+                found_inaccurate = true
             end
             μs[i] = μ
         end
@@ -85,7 +85,7 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         push!(μs, 1)
 
         ## reorthogonalize if necessary
-        if reorth_b || length(reorth_μ) > 0
+        if reorth_b || found_inaccurate
             for i in 1:j
                 axpy!(-Base.dot(U[i], u), U[i], u)
                 μs[i] = eps(Tr)
