@@ -1,11 +1,9 @@
-function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, tolError)
+function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_in, tolReorth, debug)
 
     m, n = size(A)
-    reorth_b = reorth_in
+    reorth_μ = reorth_in
     nReorth = 0
     nReorthVecs = 0
-
-    normA = norm(A, Inf)
 
     T = eltype(A)
     Tr = real(T)
@@ -19,7 +17,7 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
     v = V[iter]
     β = βs[iter]
 
-    for j = iter + (1:steps)
+    for j = iter + (1:stepSize)
 
         # The v step
         vOld = v
@@ -29,13 +27,12 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         α = norm(v)
 
         ## run ω recurrence
-        reorth_ν = Int[]
+        reorth_ν = false
         for i = 1:j - 1
-            # τ = eps(T)*(hypot(α, β) + hypot(αs[i], βs[i - 1])) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
             ν = βs[i]*μs[i + 1] + αs[i]*μs[i] - β*νs[i]
             ν = (ν + copysign(τ, ν))/α
-            if abs(ν) > tolError
-                push!(reorth_ν, i)
+            if abs(ν) > tolReorth
+                reorth_ν |= true
             end
             νs[i] = ν
         end
@@ -45,14 +42,14 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         push!(νs, 1)
 
         ## reorthogonalize if necessary
-        if reorth_b || length(reorth_ν) > 0
-            for i = 1:j - 1
+        if reorth_ν || reorth_μ
+            debug && println("Reorth v")
+            for i in 1:j - 1
                 axpy!(-Base.dot(V[i], v), V[i], v)
                 νs[i] = eps(Tr)
                 nReorthVecs += 1
             end
             α = norm(v)
-            reorth_b = !reorth_b
         end
 
         ## update the result vectors
@@ -68,16 +65,15 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         β = norm(u)
 
         ## run ω recurrence
-        reorth_μ = Int[]
+        reorth_μ = false
         for i = 1:j
-            # τ = eps(T)*(hypot(α, β) + hypot(αs[i], (i == j ? β : βs[i]))) + eps(T)*normA ### this doesn't seem to be better than fixed τ = eps
             μ = αs[i]*νs[i] - α*μs[i]
             if i > 1
                 μ += βs[i - 1]*νs[i-1]
             end
             μ = (μ + copysign(τ, μ))/β
-            if abs(μ) > tolError
-                push!(reorth_μ, i)
+            if abs(μ) > tolReorth
+                reorth_μ |= true
             end
             μs[i] = μ
         end
@@ -85,14 +81,14 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         push!(μs, 1)
 
         ## reorthogonalize if necessary
-        if reorth_b || length(reorth_μ) > 0
+        if reorth_ν || reorth_μ
+            debug && println("Reorth u")
             for i in 1:j
                 axpy!(-Base.dot(U[i], u), U[i], u)
                 μs[i] = eps(Tr)
                 nReorthVecs += 1
             end
             β = norm(u)
-            reorth_b = !reorth_b
             nReorth += 1
         end
 
@@ -102,29 +98,23 @@ function biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_in, 
         push!(U, u)
     end
 
-    αs, βs, U, V, μs, νs, reorth_b, maxμs, maxνs, nReorth, nReorthVecs
+    return αs, βs, U, V, μs, νs, reorth_μ, maxμs, maxνs, nReorth, nReorthVecs
 end
 
 function _tsvd(A,
-    nVals = 1,
+    nVals = 1;
     maxIter = 1000,
-    initVec = convert(Vector{eltype(A)}, randn(size(A,1)));
-    tolConv = 1e-12,
-    tolError = eps(real(eltype(A)))) # The ω recurrence is still not fine tunes so we do full reorthogonalization
+    initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    tolConv = sqrt(eps(real(eltype(A)))),
+    tolReorth = sqrt(eps(real(eltype(A)))),
+    stepSize = max(1, div(nVals, 10)),
+    debug = false)
 
     Tv = eltype(initVec)
     Tr = real(Tv)
 
-    # error estimate used in ω recurrence
-    # τ = eps(Tr)*countnz(A)/mean(size(A))*norm(A, Inf)
-    τ = eps(Tr)*norm(A, Inf)
-
     # I need to append βs with a zero at each iteration. Tt is much easier for type inference if it is a vector with the right element type
     z = zeros(Tr, 1)
-
-    # Iteration count and step size
-    cc = max(5, nVals)
-    steps = 5
 
     # initialize the αs, βs, U and V. Use result of first matvec to infer the correct types.
     # So the first iteration is run here, but slightly differently from the rest of the iterations
@@ -135,7 +125,6 @@ function _tsvd(A,
     scale!(v, inv(α))
     V = fill(v, 1)
     αs = fill(α, 1)
-    ν = 1 + τ/abs(α)
 
     u = A*v
     uOld = similar(u)
@@ -146,6 +135,10 @@ function _tsvd(A,
     scale!(u, inv(β))
     U = typeof(u)[uOld, u]
     βs = fill(β, 1)
+
+    # error estimate used in ω recurrence
+    τ = eps(Tr)*(α + β)
+    ν = 1 + τ/α
     μ = τ/β
 
     # Arrays for saving the estimates of the maximum angles between Lanczos vectors
@@ -159,27 +152,47 @@ function _tsvd(A,
     V::Vector{typeof(v)},
     μs::Vector{Tr},
     νs::Vector{Tr},
-    reorth_b::Bool, maxμ, maxν, _ = biLanczosIterations(A, cc, τ, αs, βs, U, V, [μ, 1], [one(μ)], false, tolError)
+    reorth_μ::Bool, maxμ, maxν, _ =
+        biLanczosIterations(A, nVals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolReorth, debug)
+
+    # Iteration count
+    iter = nVals
 
     # Save the estimates of the maximum angles between Lanczos vectors
     append!(maxμs, maxμ)
 
-    vals0 = svdvals(Bidiagonal([αs; z], βs, false))
+    # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
+    vals0 = svdvals(Bidiagonal([αs;z], βs, false))
     vals1 = vals0
 
     hasConv = false
-    while cc <= maxIter
-        _, _, _, _, _, _, reorth_b, maxμ, maxν, _ = biLanczosIterations(A, steps, τ, αs, βs, U, V, μs, νs, reorth_b, tolError)
+    while iter <= maxIter
+        _, _, _, _, _, _, reorth_μ, maxμ, maxν, _ =
+            biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolReorth, debug)
         append!(maxμs, maxμ)
         append!(maxνs, maxν)
+        iter += stepSize
 
-        vals1 = Base.LinAlg.svdvals(Bidiagonal([αs; z], βs, false))
+        # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
+        vals1 = svdvals(Bidiagonal([αs;z], βs, false))
+
+        debug && @show vals1[nVals]/vals0[nVals] - 1
+
         if vals0[nVals]*(1 - tolConv) < vals1[nVals] < vals0[nVals]*(1 + tolConv)
-            hasConv = true
-            break
+            # UU, ss, VV = svd(Bidiagonal([αs;z], βs[1:end-1], false))
+            # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
+            UU, ss, VV = svd(Bidiagonal([αs;z], βs, false))
+            # @show UU[end, 1:iter]*βs[end]
+            if all(abs(UU[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals]) && all(abs(VV[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals])
+                hasConv = true
+                break
+            end
         end
         vals0 = vals1
-        cc += steps
+        τ = eps(eltype(vals1))*vals1[1]
+
+        debug && @show iter
+        debug && @show τ
     end
     if !hasConv
         error("no convergence")
@@ -210,21 +223,21 @@ function _tsvd(A,
     # Calculate the bidiagonal SVD and update U and V
     mU = hcat(U[1:end-1])
     mV = hcat(V)
-    B = Bidiagonal(αs, βs[1:end-1], true)
+    B = Bidiagonal(αs, βs[1:end-1], false)
     smU, sms, smV = svd(B)
 
     return (mU*smU)[:,1:nVals],
         sms[1:nVals],
         (mV*smV)[:,1:nVals],
-        Bidiagonal(αs, βs[1:end-1], true),
+        Bidiagonal(αs, βs[1:end-1], false),
         mU,
         mV,
         maxμs,
-        maxνs
+        maxνs, _
 end
 
 """
-## tsvd(A, [nVals = 1, maxIter = 1000, initVec = randn(m), tolConv = 1e-12, tolError = 0.0])
+## tsvd(A, nVals = 1, [maxIter = 1000, initVec = randn(m), tolConv = 1e-12, tolReorth = 0.0, debug = false])
 
 Computes the truncated singular value decomposition (TSVD) by Lanczos bidiagonalization of the operator `A`. The Lanczos vectors are partially orthogonalized as described in
 
@@ -251,9 +264,11 @@ the identity or the conjugate transpose of `A`.
 
 - `initVec`: Initial `U` vector for the Lanczos procesdure. Default is a real vector of real Gaussian random variates. Should have the same element type as the operator `A`.
 
-- `tolConv`: Relative convergence criterion for the singular values. Default is `1e-12`.
+- `tolConv`: Relative convergence criterion for the singular values. Default is `sqrt(eps(real(eltype(A))))`.
 
-- `tolError`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `0.0` which corresponds to complete reorthogonalization. `Inf` corresponds to no reorthogonalization.
+- `tolReorth`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `sqrt(eps(real(eltype(A))))`. '0.0' and `Inf` corresponds to complete and no reorthogonalization respectively.
+
+- `debug`: Boolean flag for printing debug information
 
 **Output:**
 
@@ -264,11 +279,15 @@ The output of the procesure it the truple tuple `(U,s,V)`
 - `V`: `size(A,2)` times `nVals` matrix of right singular vectors.
 """
 tsvd(A,
-    nVals = 1,
+    nVals = 1;
     maxIter = 1000,
-    initVec = convert(Vector{eltype(A)}, randn(size(A,1)));
-    tolConv = 1e-12,
-    tolError = 0.0) = _tsvd(A, nVals, maxIter, initVec, tolConv = tolConv, tolError = tolError)[1:3]
+    initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    tolConv = sqrt(eps(real(eltype(A)))),
+    tolReorth = sqrt(eps(real(eltype(A)))),
+    stepSize = max(1, div(nVals, 10)),
+    debug = false) =
+        _tsvd(A, nVals, maxIter = maxIter, initVec = initVec, tolConv = tolConv,
+            tolReorth = tolReorth, debug = debug)[1:3]
 
 
 ### SVD by Lanczos on A'A
@@ -304,10 +323,14 @@ function (*){T}(A::AtA{T}, x::AbstractVecOrMat)
 end
 
 function tsvd2(A,
-    nvals = 1,
-    maxIter = div(min(size(A)...), 2),
-    initVec = convert(Vector{eltype(A)}, randn(size(A,2)));
-    tolConv = 1e-12)
-    values, vectors, S, lanczosVecs = _teig(AtA(A, initVec), nvals, maxIter, initVec, tolConv)
-    return sqrt(values), vectors
+    nVals = 1;
+    maxIter = minimum(size(A)),
+    initVec = convert(Vector{eltype(A)}, randn(size(A,2))),
+    tolConv = sqrt(eps(real(eltype(A)))),
+    stepSize = max(1, div(nVals, 10)),
+    debug = false)
+    values, vectors, S, lanczosVecs = _teig(AtA(A, initVec), nVals, maxIter = maxIter,
+        initVec = initVec, tolConv = tolConv, stepSize = stepSize, debug = debug)
+    mV = hcat(lanczosVecs[1:end-1])*vectors
+    return sqrt(reverse(values)[1:nVals]), mV[:,end:-1:1][:,1:nVals]
 end
