@@ -75,7 +75,6 @@ function _teig(A,
         ### Use criteria (9.18) of Peter Arbenz' lecture notes ###
         βj = βs[end]
         converged = Int[]
-        # for i = maximum(converged) + 1:length(αs)
         for i = 1:length(αs)
             if βj*abs(vectors[end,i]) < abs(values[i])*tolConv
                 push!(converged, i)
