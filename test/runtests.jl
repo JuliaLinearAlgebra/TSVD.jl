@@ -1,18 +1,27 @@
 using TSVD
 using Base.Test
 
-m, n, p = 10, 6, 0.8
-mnp = round(Integer, m*n*p)
+for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
+    mnp = round(Integer, m*n*p)
 
-for A in (randn(m, n),
-          complex(randn(m, n), randn(m, n)),
-          sprandn(m, n, p),
-          sparse(rand(1:m, mnp), rand(1:n, mnp), complex(randn(mnp), randn(mnp)), m, n))
+    for A in (randn(m, n),
+              complex(randn(m, n), randn(m, n)),
+              sprandn(m, n, p),
+              sparse(rand(1:m, mnp), rand(1:n, mnp), complex(randn(mnp), randn(mnp)), m, n))
 
-    vals = svdvals(full(A))
+        Uf, sf, Vf = svd(full(A))
 
-    for k = 1:5
-        U, s, V, _ = tsvd(A, k)
-        @test_approx_eq s vals[1:k]
+        for k = 1:5
+            U, s, V = TSVD.tsvd(A, k)
+            @test norm(s - sf[1:k]) < sqrt(eps(real(eltype(A))))*mnp
+            @test norm(abs(U'Uf[:,1:k]) - I) < sqrt(eps(real(eltype(A))))*mnp
+            @test norm(abs(V'Vf[:,1:k]) - I) < sqrt(eps(real(eltype(A))))*mnp
+
+            s, V = TSVD.tsvd2(A, k)
+            # tmp = TSVD._teig(TSVD.AtA(A, randn(n)), k, debug = true)
+            # @test norm(sqrt(reverse(tmp[1]))[1:k] - sf[1:k]) < sqrt(eps(real(eltype(A))))*mnp
+            @test norm(s - sf[1:k]) < sqrt(eps(real(eltype(A))))*mnp
+            @test norm(abs(V'Vf[:,1:k]) - I) < sqrt(eps(real(eltype(A))))*mnp
+        end
     end
 end
