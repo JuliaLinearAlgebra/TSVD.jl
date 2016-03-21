@@ -26,6 +26,10 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         axpy!(T(-β), vOld, v)
         α = norm(v)
 
+        ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
+        τ = max(τ, eps(Tr) * (α + β))
+        debug && @show τ
+
         ## run ω recurrence
         reorth_ν = false
         for i = 1:j - 1
@@ -63,6 +67,10 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         u = A*v
         axpy!(T(-α), uOld, u)
         β = norm(u)
+
+        ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
+        τ = max(τ, eps(Tr) * (α + β))
+        debug && @show τ
 
         ## run ω recurrence
         reorth_μ = false
