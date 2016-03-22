@@ -15,7 +15,7 @@ end
 
 function update1!{Tr}(ω::OmegaRecurrence{Tr}, αs, βs, α::Tr, β::Tr)
     #Update estimate of matrix norm
-    ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
+    ##FIXME Use tighter bounds, see Larsen's thesis page 33
     ω.τ = max(ω.τ, eps(Tr) * (α + β))
 
     reorth_ν = false
@@ -35,6 +35,7 @@ end
 
 function update2!{Tr}(ω::OmegaRecurrence{Tr}, αs, βs, α::Tr, β::Tr)
     #Update estimate of matrix norm
+    ##FIXME Use tighter bounds, see Larsen's thesis page 33
     ω.τ = max(ω.τ, eps(Tr) * (α + β))
 
     reorth_μ = false
@@ -80,7 +81,7 @@ function reorthogonalize2!{Tr}(u, U, β::Tr, ω)
     end
 end
 
-function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_in, tolReorth, debug)
+function biLanczosIterations(A, stepSize, αs, βs, U, V, ω::OmegaRecurrence, debug::Bool)
 
     m, n = size(A)
 
@@ -92,8 +93,6 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
     u = U[iter + 1]
     v = V[iter]
     β = βs[iter]
-
-    ω = OmegaRecurrence{Tr}(tolReorth, reorth_in, false, τ, μs, νs, Tr[], Tr[], 0, 0)
 
     for j = iter + (1:stepSize)
 
@@ -149,8 +148,6 @@ function _tsvd(A,
     scale!(v, inv(nrmInit))
     α = norm(v)
     scale!(v, inv(α))
-    V = fill(v, 1)
-    αs = fill(α, 1)
 
     u = A*v
     uOld = similar(u)
@@ -159,31 +156,25 @@ function _tsvd(A,
     axpy!(eltype(u)(-α), uOld, u)
     β = norm(u)
     scale!(u, inv(β))
-    U = typeof(u)[uOld, u]
-    βs = fill(β, 1)
 
-    # error estimate used in ω recurrence
+    # error estimates used in ω recurrence
     τ = eps(Tr)*(α + β)
     ν = 1 + τ/α
     μ = τ/β
-
-    # Arrays for saving the estimates of the maximum angles between Lanczos vectors
-    maxμs = Tr[]
-    maxνs = Tr[]
+    ω = OmegaRecurrence{Tr}(tolReorth, false, false,
+        τ, [μ, 1], [one(μ)], Tr[], Tr[], 0, 0) #???? [one(μ)] NOT [ν]?
 
     # return types can only be inferred by man, not the machine
     αs::Vector{Tr},
     βs::Vector{Tr},
     U::Vector{typeof(v)}, # for some reason typeof(U) doesn't work here
     V::Vector{typeof(v)},
-    ω::OmegaRecurrence{Tr} =
-        biLanczosIterations(A, nVals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolReorth, debug)
+    ω::OmegaRecurrence{Tr} = biLanczosIterations(A, nVals - 1, [α], [β],
+            typeof(u)[uOld, u], typeof(v)[v],
+            ω, debug)
 
     # Iteration count
     iter = nVals
-
-    # Save the estimates of the maximum angles between Lanczos vectors
-    append!(maxμs, ω.maxμs)
 
     # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
     vals0 = svdvals(Bidiagonal([αs;z], βs, false))
@@ -192,9 +183,7 @@ function _tsvd(A,
     hasConv = false
     while iter <= maxIter
         _, _, _, _, ω =
-            biLanczosIterations(A, stepSize, αs, βs, U, V, ω.μs, ω.νs, τ, ω.reorth_μ, tolReorth, debug)
-        append!(maxμs, ω.maxμs)
-        append!(maxνs, ω.maxνs)
+            biLanczosIterations(A, stepSize, αs, βs, U, V, ω, debug)
         iter += stepSize
 
         # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
@@ -213,10 +202,10 @@ function _tsvd(A,
             end
         end
         vals0 = vals1
-        τ = eps(eltype(vals1))*vals1[1]
+        ω.τ = eps(eltype(vals1))*vals1[1]
 
         debug && @show iter
-        debug && @show τ
+        debug && @show ω.τ
     end
     if !hasConv
         error("no convergence")
@@ -256,8 +245,7 @@ function _tsvd(A,
         Bidiagonal(αs, βs[1:end-1], false),
         mU,
         mV,
-        maxμs,
-        maxνs, nothing
+        ω
 end
 
 """
