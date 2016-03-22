@@ -21,7 +21,7 @@ function update1!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
         ω.νs[i] = ν
     end
     if j > 1
-        push!(ω.maxνs, maximum(abs(ω.νs)))
+        push!(ω.maxνs, maxabs(ω.νs))
     end
     push!(ω.νs, 1)
     ω.reorth_ν = reorth_ν
@@ -41,10 +41,37 @@ function update2!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
         end
         ω.μs[i] = μ
     end
-    push!(ω.maxμs, maximum(ω.μs)) #XXX why maxabs in updatr1?
+    push!(ω.maxμs, maxabs(ω.μs))
     push!(ω.μs, 1)
     ω.reorth_μ = reorth_μ
     nothing
+end
+
+function reorthogonalize1!{Tr}(v, V, α::Tr, ω, j)
+    if ω.reorth_ν || ω.reorth_μ
+        for i in 1:j - 1
+            axpy!(-Base.dot(V[i], v), V[i], v)
+            ω.νs[i] = eps(Tr) #reset ω-recurrences
+            ω.nReorthVecs += 1
+        end
+        return norm(v)
+    else
+        return α
+    end
+end
+
+function reorthogonalize2!{Tr}(u, U, β::Tr, ω, j)
+    if ω.reorth_ν || ω.reorth_μ
+        for i in 1:j
+            axpy!(-Base.dot(U[i], u), U[i], u)
+            ω.μs[i] = eps(Tr) #reset ω-recurrences
+            ω.nReorthVecs += 1
+        end
+        ω.nReorth += 1
+        return norm(u)
+    else
+        return β
+    end
 end
 
 function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_in, tolReorth, debug)
@@ -80,15 +107,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         update1!(ω, j, αs, βs, α, β, τ)
 
         ## reorthogonalize if necessary
-        if ω.reorth_ν || ω.reorth_μ
-            debug && println("Reorth v")
-            for i in 1:j - 1
-                axpy!(-Base.dot(V[i], v), V[i], v)
-                ω.νs[i] = eps(Tr) #reset ω-recurrences
-                ω.nReorthVecs += 1
-            end
-            α = norm(v)
-        end
+        α = reorthogonalize1!(v, V, α, ω, j)
 
         ## update the result vectors
         push!(αs, α)
@@ -110,16 +129,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         update2!(ω, j, αs, βs, α, β, τ)
 
         ## reorthogonalize if necessary
-        if ω.reorth_ν || ω.reorth_μ
-            debug && println("Reorth u")
-            for i in 1:j
-                axpy!(-Base.dot(U[i], u), U[i], u)
-                ω.μs[i] = eps(Tr) #reset ω-recurrences
-                ω.nReorthVecs += 1
-            end
-            β = norm(u)
-            ω.nReorth += 1
-        end
+        β = reorthogonalize2!(u, U, β, ω, j)
 
         ## update the result vectors
         push!(βs, β)
