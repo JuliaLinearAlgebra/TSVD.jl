@@ -10,9 +10,9 @@ type OmegaRecurrence{Tr}
     nReorthVecs::Int
 end
 
-function update1!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
+function update1!(ω::OmegaRecurrence, αs, βs, α, β, τ)
     reorth_ν = false
-    for i = 1:j - 1
+    for i in eachindex(αs)
         ν = βs[i]*ω.μs[i + 1] + αs[i]*ω.μs[i] - β*ω.νs[i]
         ν = (ν + copysign(τ, ν))/α
         if abs(ν) > ω.tolReorth
@@ -20,7 +20,7 @@ function update1!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
         end
         ω.νs[i] = ν
     end
-    if j > 1
+    if length(αs) > 1
         push!(ω.maxνs, maxabs(ω.νs))
     end
     push!(ω.νs, 1)
@@ -28,9 +28,9 @@ function update1!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
     nothing
 end
 
-function update2!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
+function update2!(ω::OmegaRecurrence, αs, βs, α, β, τ)
     reorth_μ = false
-    for i = 1:j
+    for i in eachindex(αs)
         μ = αs[i]*ω.νs[i] - α*ω.μs[i]
         if i > 1
             μ += βs[i - 1]*ω.νs[i-1]
@@ -47,9 +47,9 @@ function update2!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
     nothing
 end
 
-function reorthogonalize1!{Tr}(v, V, α::Tr, ω, j)
+function reorthogonalize1!{Tr}(v, V, α::Tr, ω)
     if ω.reorth_ν || ω.reorth_μ
-        for i in 1:j - 1
+        for i in 1:size(V, 1)
             axpy!(-Base.dot(V[i], v), V[i], v)
             ω.νs[i] = eps(Tr) #reset ω-recurrences
             ω.nReorthVecs += 1
@@ -60,9 +60,9 @@ function reorthogonalize1!{Tr}(v, V, α::Tr, ω, j)
     end
 end
 
-function reorthogonalize2!{Tr}(u, U, β::Tr, ω, j)
+function reorthogonalize2!{Tr}(u, U, β::Tr, ω)
     if ω.reorth_ν || ω.reorth_μ
-        for i in 1:j
+        for i in 1:size(U, 1)
             axpy!(-Base.dot(U[i], u), U[i], u)
             ω.μs[i] = eps(Tr) #reset ω-recurrences
             ω.nReorthVecs += 1
@@ -102,12 +102,8 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         τ = max(τ, eps(Tr) * (α + β))
         debug && @show τ
 
-
-        ## run ω recurrence
-        update1!(ω, j, αs, βs, α, β, τ)
-
-        ## reorthogonalize if necessary
-        α = reorthogonalize1!(v, V, α, ω, j)
+        update1!(ω, αs, βs, α, β, τ)   ## run ω recurrence
+        α = reorthogonalize1!(v, V, α, ω) ## reorthogonalize if necessary
 
         ## update the result vectors
         push!(αs, α)
@@ -125,11 +121,8 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         τ = max(τ, eps(Tr) * (α + β))
         debug && @show τ
 
-        ## run ω recurrence
-        update2!(ω, j, αs, βs, α, β, τ)
-
-        ## reorthogonalize if necessary
-        β = reorthogonalize2!(u, U, β, ω, j)
+        update2!(ω, αs, βs, α, β, τ)   ## run ω recurrence
+        β = reorthogonalize2!(u, U, β, ω) ## reorthogonalize if necessary
 
         ## update the result vectors
         push!(βs, β)
