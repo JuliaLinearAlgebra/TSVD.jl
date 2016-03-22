@@ -1,7 +1,10 @@
+#Partial reorthogonalization along the lines of Larsen (1999)'s adaptation of
+#the method described by Simon
 type OmegaRecurrence{Tr}
     tolReorth::Tr
     reorth_μ::Bool
     reorth_ν::Bool
+    τ::Tr
     μs::Vector{Tr}
     νs::Vector{Tr}
     maxμs::Vector{Tr}
@@ -10,14 +13,16 @@ type OmegaRecurrence{Tr}
     nReorthVecs::Int
 end
 
-function update1!(ω::OmegaRecurrence, αs, βs, α, β, τ)
+function update1!{Tr}(ω::OmegaRecurrence{Tr}, αs, βs, α::Tr, β::Tr)
+    #Update estimate of matrix norm
+    ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
+    ω.τ = max(ω.τ, eps(Tr) * (α + β))
+
     reorth_ν = false
     for i in eachindex(αs)
-        ν = βs[i]*ω.μs[i + 1] + αs[i]*ω.μs[i] - β*ω.νs[i]
-        ν = (ν + copysign(τ, ν))/α
-        if abs(ν) > ω.tolReorth
-            reorth_ν |= true
-        end
+        ν = βs[i]*ω.μs[i+1] + αs[i]*ω.μs[i] - β*ω.νs[i]
+        ν = (ν + copysign(ω.τ, ν))/α
+        reorth_ν |= (abs(ν) > ω.tolReorth)
         ω.νs[i] = ν
     end
     if length(αs) > 1
@@ -28,17 +33,18 @@ function update1!(ω::OmegaRecurrence, αs, βs, α, β, τ)
     nothing
 end
 
-function update2!(ω::OmegaRecurrence, αs, βs, α, β, τ)
+function update2!{Tr}(ω::OmegaRecurrence{Tr}, αs, βs, α::Tr, β::Tr)
+    #Update estimate of matrix norm
+    ω.τ = max(ω.τ, eps(Tr) * (α + β))
+
     reorth_μ = false
     for i in eachindex(αs)
         μ = αs[i]*ω.νs[i] - α*ω.μs[i]
         if i > 1
-            μ += βs[i - 1]*ω.νs[i-1]
+            μ += βs[i-1]*ω.νs[i-1]
         end
-        μ = (μ + copysign(τ, μ))/β
-        if abs(μ) > ω.tolReorth
-            ω.reorth_μ |= true
-        end
+        μ = (μ + copysign(ω.τ, μ))/β
+        reorth_μ |= (abs(μ) > ω.tolReorth)
         ω.μs[i] = μ
     end
     push!(ω.maxμs, maxabs(ω.μs))
@@ -87,7 +93,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
     v = V[iter]
     β = βs[iter]
 
-    ω = OmegaRecurrence{Tr}(tolReorth, reorth_in, false, μs, νs, Tr[], Tr[], 0, 0)
+    ω = OmegaRecurrence{Tr}(tolReorth, reorth_in, false, τ, μs, νs, Tr[], Tr[], 0, 0)
 
     for j = iter + (1:stepSize)
 
@@ -97,17 +103,12 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         axpy!(T(-β), vOld, v)
         α = norm(v)
 
-        ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
-        τ = max(τ, eps(Tr) * (α + β))
-        debug && @show τ
-
-        update1!(ω, αs, βs, α, β, τ)   ## run ω recurrence
+        update1!(ω, αs, βs, α, β)         ## run ω recurrence
         α = reorthogonalize1!(v, V, α, ω) ## reorthogonalize if necessary
 
         ## update the result vectors
         push!(αs, α)
-        scale!(v, inv(α))
-        push!(V, v)
+        push!(V, scale!(v, inv(α)))
 
         # The u step
         uOld = u
@@ -115,17 +116,12 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         axpy!(T(-α), uOld, u)
         β = norm(u)
 
-        ## update norm(A) estimate. FixMe! Use tighter bounds, see Larsen's thesis page 33
-        τ = max(τ, eps(Tr) * (α + β))
-        debug && @show τ
-
-        update2!(ω, αs, βs, α, β, τ)   ## run ω recurrence
+        update2!(ω, αs, βs, α, β)         ## run ω recurrence
         β = reorthogonalize2!(u, U, β, ω) ## reorthogonalize if necessary
 
         ## update the result vectors
         push!(βs, β)
-        scale!(u, inv(β))
-        push!(U, u)
+        push!(U, scale!(u, inv(β)))
     end
 
     return αs, βs, U, V, ω
