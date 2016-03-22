@@ -93,8 +93,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
 
         # The v step
         vOld = v
-        ## apply operator
-        v = A'u
+        v = A'u ## apply operator
         axpy!(T(-β), vOld, v)
         α = norm(v)
 
@@ -112,8 +111,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
 
         # The u step
         uOld = u
-        ## apply operator
-        u = A*v
+        u = A*v ## apply operator
         axpy!(T(-α), uOld, u)
         β = norm(u)
 
@@ -272,8 +270,6 @@ end
 Computes the truncated singular value decomposition (TSVD) by Lanczos bidiagonalization of the operator `A`. The Lanczos vectors are partially orthogonalized as described in
 
 R. M. Larsen, *Lanczos bidiagonalization with partial reorthogonalization*, Department of Computer Science, Aarhus University, Technical report, DAIMI PB-357, September 1998.
-
-Note! At the moment the default is complete orthogonalization because the ω recurrences that measure the orthogonality of the Lanczos vectors still requires some fine tuning.
 
 **Arguments:**
 
