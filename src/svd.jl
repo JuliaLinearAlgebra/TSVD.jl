@@ -1,21 +1,66 @@
+type OmegaRecurrence{Tr}
+    tolReorth::Tr
+    reorth_μ::Bool
+    reorth_ν::Bool
+    μs::Vector{Tr}
+    νs::Vector{Tr}
+    maxμs::Vector{Tr}
+    maxνs::Vector{Tr}
+    nReorth::Int
+    nReorthVecs::Int
+end
+
+function update1!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
+    reorth_ν = false
+    for i = 1:j - 1
+        ν = βs[i]*ω.μs[i + 1] + αs[i]*ω.μs[i] - β*ω.νs[i]
+        ν = (ν + copysign(τ, ν))/α
+        if abs(ν) > ω.tolReorth
+            reorth_ν |= true
+        end
+        ω.νs[i] = ν
+    end
+    if j > 1
+        push!(ω.maxνs, maximum(abs(ω.νs)))
+    end
+    push!(ω.νs, 1)
+    ω.reorth_ν = reorth_ν
+    nothing
+end
+
+function update2!(ω::OmegaRecurrence, j, αs, βs, α, β, τ)
+    reorth_μ = false
+    for i = 1:j
+        μ = αs[i]*ω.νs[i] - α*ω.μs[i]
+        if i > 1
+            μ += βs[i - 1]*ω.νs[i-1]
+        end
+        μ = (μ + copysign(τ, μ))/β
+        if abs(μ) > ω.tolReorth
+            ω.reorth_μ |= true
+        end
+        ω.μs[i] = μ
+    end
+    push!(ω.maxμs, maximum(ω.μs)) #XXX why maxabs in updatr1?
+    push!(ω.μs, 1)
+    ω.reorth_μ = reorth_μ
+    nothing
+end
+
 function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_in, tolReorth, debug)
 
     m, n = size(A)
-    reorth_μ = reorth_in
-    nReorth = 0
-    nReorthVecs = 0
 
     T = eltype(A)
     Tr = real(T)
-
-    maxνs = Tr[]
-    maxμs = Tr[]
 
     iter = length(αs)
 
     u = U[iter + 1]
     v = V[iter]
     β = βs[iter]
+
+    ω = OmegaRecurrence{Tr}(tolReorth, reorth_in, false, μs, νs, Tr[], Tr[], 0, 0)
 
     for j = iter + (1:stepSize)
 
@@ -30,28 +75,17 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         τ = max(τ, eps(Tr) * (α + β))
         debug && @show τ
 
+
         ## run ω recurrence
-        reorth_ν = false
-        for i = 1:j - 1
-            ν = βs[i]*μs[i + 1] + αs[i]*μs[i] - β*νs[i]
-            ν = (ν + copysign(τ, ν))/α
-            if abs(ν) > tolReorth
-                reorth_ν |= true
-            end
-            νs[i] = ν
-        end
-        if j > 1
-            push!(maxνs, maximum(abs(νs)))
-        end
-        push!(νs, 1)
+        update1!(ω, j, αs, βs, α, β, τ)
 
         ## reorthogonalize if necessary
-        if reorth_ν || reorth_μ
+        if ω.reorth_ν || ω.reorth_μ
             debug && println("Reorth v")
             for i in 1:j - 1
                 axpy!(-Base.dot(V[i], v), V[i], v)
-                νs[i] = eps(Tr)
-                nReorthVecs += 1
+                ω.νs[i] = eps(Tr) #reset ω-recurrences
+                ω.nReorthVecs += 1
             end
             α = norm(v)
         end
@@ -73,31 +107,18 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         debug && @show τ
 
         ## run ω recurrence
-        reorth_μ = false
-        for i = 1:j
-            μ = αs[i]*νs[i] - α*μs[i]
-            if i > 1
-                μ += βs[i - 1]*νs[i-1]
-            end
-            μ = (μ + copysign(τ, μ))/β
-            if abs(μ) > tolReorth
-                reorth_μ |= true
-            end
-            μs[i] = μ
-        end
-        push!(maxμs, maximum(μs))
-        push!(μs, 1)
+        update2!(ω, j, αs, βs, α, β, τ)
 
         ## reorthogonalize if necessary
-        if reorth_ν || reorth_μ
+        if ω.reorth_ν || ω.reorth_μ
             debug && println("Reorth u")
             for i in 1:j
                 axpy!(-Base.dot(U[i], u), U[i], u)
-                μs[i] = eps(Tr)
-                nReorthVecs += 1
+                ω.μs[i] = eps(Tr) #reset ω-recurrences
+                ω.nReorthVecs += 1
             end
             β = norm(u)
-            nReorth += 1
+            ω.nReorth += 1
         end
 
         ## update the result vectors
@@ -106,7 +127,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         push!(U, u)
     end
 
-    return αs, βs, U, V, μs, νs, reorth_μ, maxμs, maxνs, nReorth, nReorthVecs
+    return αs, βs, U, V, ω
 end
 
 function _tsvd(A,
@@ -158,16 +179,14 @@ function _tsvd(A,
     βs::Vector{Tr},
     U::Vector{typeof(v)}, # for some reason typeof(U) doesn't work here
     V::Vector{typeof(v)},
-    μs::Vector{Tr},
-    νs::Vector{Tr},
-    reorth_μ::Bool, maxμ, maxν, _ =
+    ω::OmegaRecurrence{Tr} =
         biLanczosIterations(A, nVals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolReorth, debug)
 
     # Iteration count
     iter = nVals
 
     # Save the estimates of the maximum angles between Lanczos vectors
-    append!(maxμs, maxμ)
+    append!(maxμs, ω.maxμs)
 
     # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
     vals0 = svdvals(Bidiagonal([αs;z], βs, false))
@@ -175,10 +194,10 @@ function _tsvd(A,
 
     hasConv = false
     while iter <= maxIter
-        _, _, _, _, _, _, reorth_μ, maxμ, maxν, _ =
-            biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolReorth, debug)
-        append!(maxμs, maxμ)
-        append!(maxνs, maxν)
+        _, _, _, _, ω =
+            biLanczosIterations(A, stepSize, αs, βs, U, V, ω.μs, ω.νs, τ, ω.reorth_μ, tolReorth, debug)
+        append!(maxμs, ω.maxμs)
+        append!(maxνs, ω.maxνs)
         iter += stepSize
 
         # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
@@ -241,7 +260,7 @@ function _tsvd(A,
         mU,
         mV,
         maxμs,
-        maxνs, _
+        maxνs, nothing
 end
 
 """
