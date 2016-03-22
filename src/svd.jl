@@ -164,14 +164,8 @@ function _tsvd(A,
     ω = OmegaRecurrence{Tr}(tolReorth, false, false,
         τ, [μ, 1], [one(μ)], Tr[], Tr[], 0, 0) #???? [one(μ)] NOT [ν]?
 
-    # return types can only be inferred by man, not the machine
-    αs::Vector{Tr},
-    βs::Vector{Tr},
-    U::Vector{typeof(v)}, # for some reason typeof(U) doesn't work here
-    V::Vector{typeof(v)},
-    ω::OmegaRecurrence{Tr} = biLanczosIterations(A, nVals - 1, [α], [β],
-            typeof(u)[uOld, u], typeof(v)[v],
-            ω, debug)
+    αs,βs,U,V,ω = biLanczosIterations(
+        A, nVals - 1, [α], [β], typeof(u)[uOld, u], typeof(v)[v], ω, debug)
 
     # Iteration count
     iter = nVals
@@ -207,9 +201,7 @@ function _tsvd(A,
         debug && @show iter
         debug && @show ω.τ
     end
-    if !hasConv
-        error("no convergence")
-    end
+    hasConv || error("no convergence")
 
     # Form upper bidiagonal square matrix
     # m = length(U[1])
