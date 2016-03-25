@@ -234,7 +234,7 @@ function _tsvd(A,
     return (mU*smU)[:,1:nVals],
         sms[1:nVals],
         (mV*smV)[:,1:nVals],
-        Bidiagonal(αs, βs[1:end-1], false),
+        Bidiagonal(αs, βs[1:end-1], false), β,
         mU,
         mV,
         ω
