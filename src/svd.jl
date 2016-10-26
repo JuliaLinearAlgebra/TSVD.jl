@@ -41,7 +41,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
             νs[i] = ν
         end
         if j > 1
-            push!(maxνs, maximum(abs(νs)))
+            push!(maxνs, maxabs(νs))
         end
         push!(νs, 1)
 
@@ -191,7 +191,7 @@ function _tsvd(A,
             # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
             UU, ss, VV = svd(Bidiagonal([αs;z], βs, false))
             # @show UU[end, 1:iter]*βs[end]
-            if all(abs(UU[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals]) && all(abs(VV[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals])
+            if all(abs.(UU[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals]) && all(abs.(VV[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals])
                 hasConv = true
                 break
             end
@@ -325,7 +325,12 @@ function A_mul_B!{T,S,V}(α::T, A::AtA{T,S,V}, x::AbstractVecOrMat{T}, β::T, y:
     Ac_mul_B!(α, A.matrix, A.vector, β, y)
     return y
 end
-function (*){T}(A::AtA{T}, x::AbstractVecOrMat)
+# Split Vector and Matrix to avoid ambiguity
+function (*){T}(A::AtA{T}, x::AbstractVector)
+    A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
+    return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
+end
+function (*){T}(A::AtA{T}, x::AbstractMatrix)
     A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
     return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
 end
@@ -340,5 +345,5 @@ function tsvd2(A,
     values, vectors, S, lanczosVecs = _teig(AtA(A, initVec), nVals, maxIter = maxIter,
         initVec = initVec, tolConv = tolConv, stepSize = stepSize, debug = debug)
     mV = hcat(lanczosVecs[1:end-1])*vectors
-    return sqrt(reverse(values)[1:nVals]), mV[:,end:-1:1][:,1:nVals]
+    return sqrt.(reverse(values)[1:nVals]), mV[:,end:-1:1][:,1:nVals]
 end
