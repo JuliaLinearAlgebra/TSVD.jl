@@ -6,7 +6,7 @@ julia:
   - 0.5
   - nightly
 notifications:
-  email: false
+  email: andreasnoackjensen@gmail.com
 script:
  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("TSVD"); Pkg.test("TSVD"; coverage=true)'
