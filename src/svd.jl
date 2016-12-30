@@ -41,7 +41,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
             νs[i] = ν
         end
         if j > 1
-            push!(maxνs, maxabs(νs))
+            push!(maxνs, maximum(abs, νs))
         end
         push!(νs, 1)
 
