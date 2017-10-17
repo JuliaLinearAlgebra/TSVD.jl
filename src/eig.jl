@@ -5,7 +5,7 @@ function lanczosIterations(A, stepSize, αs, βs, vs, reorthogonalize)
     v = vs[iter + 1]
     β = βs[iter]
 
-    for i = iter + (1:stepSize)
+    for i = iter .+ (1:stepSize)
         w = A*v
         α = real(dot(w,v))
 

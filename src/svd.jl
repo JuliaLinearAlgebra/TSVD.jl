@@ -17,7 +17,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
     v = V[iter]
     β = βs[iter]
 
-    for j = iter + (1:stepSize)
+    for j = iter .+ (1:stepSize)
 
         # The v step
         vOld = v
@@ -175,7 +175,7 @@ function _tsvd(A,
 
     hasConv = false
     while iter <= maxIter
-        _, _, _, _, _, _, reorth_μ, maxμ, maxν, _ =
+        _tmp, _tmp, _tmp, _tmp, _tmp, _tmp, reorth_μ, maxμ, maxν, _tmp =
             biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolReorth, debug)
         append!(maxμs, maxμ)
         append!(maxνs, maxν)
@@ -241,7 +241,7 @@ function _tsvd(A,
         mU,
         mV,
         maxμs,
-        maxνs, _
+        maxνs
 end
 
 """
