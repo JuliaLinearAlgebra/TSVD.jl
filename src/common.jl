@@ -1,4 +1,4 @@
-function hcat{T<:AbstractVecOrMat}(x::Vector{T})
+function hcat(x::Vector{T}) where T<:AbstractVecOrMat
     l    = length(x)
     if l == 0
         throw(ArgumentError("cannot flatten empty vector"))
@@ -13,9 +13,9 @@ function hcat{T<:AbstractVecOrMat}(x::Vector{T})
     end
 end
 
-A_mul_B!{T<:BlasFloat}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = BLAS.gemv!('N', convert(T, α), A, x, convert(T, β), y)
-Ac_mul_B!{T<:BlasReal}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = BLAS.gemv!('T', convert(T, α), A, x, convert(T, β), y)
-Ac_mul_B!{T<:BlasComplex}(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) = BLAS.gemv!('C', convert(T, α), A, x, convert(T, β), y)
+A_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasFloat} = BLAS.gemv!('N', convert(T, α), A, x, convert(T, β), y)
+Ac_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasReal} = BLAS.gemv!('T', convert(T, α), A, x, convert(T, β), y)
+Ac_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasComplex} = BLAS.gemv!('C', convert(T, α), A, x, convert(T, β), y)
 
 function A_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y::StridedVector)
     n = length(y)

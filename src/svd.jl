@@ -300,7 +300,7 @@ tsvd(A,
 
 ### SVD by Lanczos on A'A
 
-type AtA{T,S<:AbstractMatrix,V<:AbstractVecOrMat} <: AbstractMatrix{T}
+mutable struct AtA{T,S<:AbstractMatrix,V<:AbstractVecOrMat} <: AbstractMatrix{T}
     matrix::S
     vector::V
 end
@@ -320,17 +320,17 @@ function size(A::AtA, i::Integer)
 end
 size(A::AtA) = (size(A, 1), size(A, 2))
 
-function A_mul_B!{T,S,V}(α::T, A::AtA{T,S,V}, x::AbstractVecOrMat{T}, β::T, y::AbstractVecOrMat{T})
+function A_mul_B!(α::T, A::AtA{T,S,V}, x::AbstractVecOrMat{T}, β::T, y::AbstractVecOrMat{T}) where {T,S,V}
     A_mul_B!(one(T), A.matrix, x, zero(T), A.vector)
     Ac_mul_B!(α, A.matrix, A.vector, β, y)
     return y
 end
 # Split Vector and Matrix to avoid ambiguity
-function (*){T}(A::AtA{T}, x::AbstractVector)
+function (*)(A::AtA{T}, x::AbstractVector) where T
     A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
     return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
 end
-function (*){T}(A::AtA{T}, x::AbstractMatrix)
+function (*)(A::AtA{T}, x::AbstractMatrix) where T
     A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
     return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
 end
