@@ -3,12 +3,13 @@ os:
   - linux
   - osx
 julia:
-  - 0.5
+  - 0.6
   - nightly
-notifications:
-  email: andreasnoackjensen@gmail.com
-script:
- - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
- - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("TSVD"); Pkg.test("TSVD"; coverage=true)'
+matrix:
+  allow_failures:
+  - julia: nightly
+# script:
+#  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+#  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("TSVD"); Pkg.test("TSVD"; coverage=true)'
 after_success:
  - julia -e 'cd(Pkg.dir("TSVD")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
