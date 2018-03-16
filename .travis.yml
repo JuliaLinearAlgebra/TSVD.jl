@@ -7,9 +7,11 @@ julia:
   - nightly
 matrix:
   allow_failures:
-  - julia: nightly
+    - julia: nightly
 # script:
 #  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 #  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("TSVD"); Pkg.test("TSVD"; coverage=true)'
 after_success:
- - julia -e 'cd(Pkg.dir("TSVD")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
+  - julia -e 'cd(Pkg.dir("TSVD")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
+  - julia -e 'Pkg.add("Documenter")'
+  - julia -e 'cd(Pkg.dir("TSVD")); include(joinpath("docs", "make.jl"))'
