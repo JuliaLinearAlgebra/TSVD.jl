@@ -1,7 +1,20 @@
 # The TSVD documentation
-It's about *SVD*s
 
 ## Functions
+```@meta
+CurrentModule = TSVD
+DocTestSetup = quote
+    using MatrixDepot, TSVD
+    try
+        matrixdepot("Rucci/Rucci1", :get)
+    end
+end
+```
+
 ```@docs
 tsvd
+```
+
+```@meta
+DocTestSetup = nothing
 ```

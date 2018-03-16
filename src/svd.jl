@@ -113,8 +113,8 @@ function _tsvd(A,
     nVals = 1;
     maxIter = 1000,
     initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
-    tolConv = sqrt(eps(real(eltype(A)))),
-    tolReorth = sqrt(eps(real(eltype(A)))),
+    tolConv = sqrt(eps(real(eltype(initVec)))),
+    tolReorth = sqrt(eps(real(eltype(initVec)))),
     stepSize = max(1, div(nVals, 10)),
     debug = false)
 
@@ -245,53 +245,94 @@ function _tsvd(A,
 end
 
 """
-## tsvd(A, nVals = 1, [maxIter = 1000, initVec = randn(m), tolConv = 1e-12, tolReorth = 0.0, debug = false])
+    tsvd(A, nVals = 1; [maxIter, initVec, tolConv, tolReorth, debug])
 
 Computes the truncated singular value decomposition (TSVD) by Lanczos bidiagonalization of the operator `A`. The Lanczos vectors are partially orthogonalized as described in
 
 R. M. Larsen, *Lanczos bidiagonalization with partial reorthogonalization*, Department of Computer Science, Aarhus University, Technical report, DAIMI PB-357, September 1998.
 
-Note! At the moment the default is complete orthogonalization because the ω recurrences that measure the orthogonality of the Lanczos vectors still requires some fine tuning.
 
-**Arguments:**
+
+# Positional arguments:
 
 - `A`: Anything that supports the in place update operations
 
-```julia
-A_mul_B!(α::Number, A, x::Vector, β::Number, y::Vector)
-``` and
-```julia
-Ac_mul_B!(α::Number, A, x::Vector, β::Number, y::Vector)
-```
-corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be either
-the identity or the conjugate transpose of `A`.
+
+    A_mul_B!(α::Number, A, x::AbstractVector, β::Number, y::AbstractVector)
+
+and
+
+    Ac_mul_B!(α::Number, A, x::AbstractVector, β::Number, y::AbstractVector)
+
+corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be either the identity or the conjugate transpose of `A`. If the `initVec` argument is not supplied then it is furthermore required that `A` supports `eltype` and `size`.
 
 - `nVals`: The number of singular values and vectors to compute. Default is one (the largest).
 
+
+
+# Keyword arguments:
+
 - `maxIter`: The maximum number of iterations of the Lanczos bidiagonalization. Default is 1000, but usually much fewer iterations are needed.
 
-- `initVec`: Initial `U` vector for the Lanczos procesdure. Default is a real vector of real Gaussian random variates. Should have the same element type as the operator `A`.
+- `initVec`: Initial `U` vector for the Lanczos procesdure. Default is a vector of Gaussian random variates. The `length` and `eltype` of the `initVec` will control the size and element types of the basis vectors in `U` and `V`.
 
 - `tolConv`: Relative convergence criterion for the singular values. Default is `sqrt(eps(real(eltype(A))))`.
 
-- `tolReorth`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `sqrt(eps(real(eltype(A))))`. '0.0' and `Inf` corresponds to complete and no reorthogonalization respectively.
+- `tolReorth`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `sqrt(eps(real(eltype(initVec))))`. `0.0` and `Inf` correspond to complete and no reorthogonalization respectively.
 
 - `debug`: Boolean flag for printing debug information
 
-**Output:**
 
-The output of the procesure it the truple tuple `(U,s,V)`
 
-- `U`: `size(A,1)` times `nVals` matrix of left singular vectors.
+# Output:
+
+The output of the procesure it the truple tuple `(U, s, V)`
+
+- `U`: `size(A, 1)` times `nVals` matrix of left singular vectors.
 - `s`: Vector of length `nVals` of the singular values of `A`.
-- `V`: `size(A,2)` times `nVals` matrix of right singular vectors.
+- `V`: `size(A, 2)` times `nVals` matrix of right singular vectors.
+
+
+
+# Examples
+
+```jldoctest
+julia> A = matrixdepot("Rucci/Rucci1", :r)
+1977885×109900 SparseMatrixCSC{Float64,Int64} with 7791168 stored entries:
+  [1      ,       1]  =  0.167285
+  [2      ,       1]  =  0.111776
+  [3      ,       1]  =  0.0746865
+  [208    ,       1]  =  0.0703943
+  [209    ,       1]  =  0.0300765
+  [210    ,       1]  =  0.0128504
+  [415    ,       1]  =  0.00777096
+  ⋮
+  [1977263,  109900]  =  0.0618182
+  [1977264,  109900]  =  0.151233
+  [1977675,  109900]  =  0.0869268
+  [1977677,  109900]  =  0.139329
+  [1977678,  109900]  =  0.223321
+  [1977882,  109900]  =  0.224977
+  [1977884,  109900]  =  0.268216
+  [1977885,  109900]  =  0.319764
+
+julia> U, s, V = tsvd(A, 5);
+
+julia> s
+5-element Array{Float64,1}:
+ 7.06874
+ 6.98525
+ 6.96246
+ 6.88948
+ 6.86255
+```
 """
 tsvd(A,
     nVals = 1;
     maxIter = 1000,
     initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
-    tolConv = sqrt(eps(real(eltype(A)))),
-    tolReorth = sqrt(eps(real(eltype(A)))),
+    tolConv = sqrt(eps(real(eltype(initVec)))),
+    tolReorth = sqrt(eps(real(eltype(initVec)))),
     stepSize = max(1, div(nVals, 10)),
     debug = false) =
         _tsvd(A, nVals, maxIter = maxIter, initVec = initVec, tolConv = tolConv,
