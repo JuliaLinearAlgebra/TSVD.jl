@@ -5,7 +5,7 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
     nReorth = 0
     nReorthVecs = 0
 
-    T = eltype(A)
+    T = eltype(eltype(U))
     Tr = real(T)
 
     maxνs = Tr[]
@@ -112,7 +112,7 @@ end
 function _tsvd(A,
     nvals = 1;
     maxiter = 1000,
-    initvec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
     tolconv = sqrt(eps(real(eltype(initvec)))),
     tolreorth = sqrt(eps(real(eltype(initvec)))),
     stepsize = max(1, div(nvals, 10)),
@@ -330,7 +330,7 @@ julia> s
 tsvd(A,
     nvals = 1;
     maxiter = 1000,
-    initvec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
     tolconv = sqrt(eps(real(eltype(initvec)))),
     tolreorth = sqrt(eps(real(eltype(initvec)))),
     stepsize = max(1, div(nvals, 10)),
@@ -378,7 +378,7 @@ end
 
 function tsvd2(A,
     nvals = 1;
-    maxiter = minimum(size(A)),
+    maxiter = min(size(A)...),
     initvec = convert(Vector{eltype(A)}, randn(size(A,2))),
     tolconv = sqrt(eps(real(eltype(A)))),
     stepsize = max(1, div(nvals, 10)),

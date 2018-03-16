@@ -1,7 +1,7 @@
 using TSVD
 using Base.Test
 
-for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
+@testset "test tsvd with m = $m, n = $n, and p = $p" for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
     mnp = round(Integer, m*n*p)
 
     for A in (randn(m, n),
@@ -24,4 +24,9 @@ for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
             @test norm(abs.(V'Vf[:,1:k]) - I) < sqrt(eps(real(eltype(A))))*mnp
         end
     end
+end
+
+@testset "Issue 9" begin
+    data = rand(1:100, 50, 50)
+    TSVD.tsvd(data,2)
 end

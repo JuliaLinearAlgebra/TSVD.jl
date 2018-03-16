@@ -1,4 +1,7 @@
 # Copyright 2015-2018 Andreas Noack
+
+__precompile__()
+
 module TSVD
 
     export tsvd
