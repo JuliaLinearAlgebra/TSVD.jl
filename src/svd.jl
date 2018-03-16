@@ -1,4 +1,4 @@
-function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_in, tolReorth, debug)
+function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_in, tolreorth, debug)
 
     m, n = size(A)
     reorth_μ = reorth_in
@@ -17,7 +17,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
     v = V[iter]
     β = βs[iter]
 
-    for j = iter .+ (1:stepSize)
+    for j = iter .+ (1:stepsize)
 
         # The v step
         vOld = v
@@ -35,7 +35,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
         for i = 1:j - 1
             ν = βs[i]*μs[i + 1] + αs[i]*μs[i] - β*νs[i]
             ν = (ν + copysign(τ, ν))/α
-            if abs(ν) > tolReorth
+            if abs(ν) > tolreorth
                 reorth_ν |= true
             end
             νs[i] = ν
@@ -80,7 +80,7 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
                 μ += βs[i - 1]*νs[i-1]
             end
             μ = (μ + copysign(τ, μ))/β
-            if abs(μ) > tolReorth
+            if abs(μ) > tolreorth
                 reorth_μ |= true
             end
             μs[i] = μ
@@ -110,15 +110,15 @@ function biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_i
 end
 
 function _tsvd(A,
-    nVals = 1;
-    maxIter = 1000,
-    initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
-    tolConv = sqrt(eps(real(eltype(initVec)))),
-    tolReorth = sqrt(eps(real(eltype(initVec)))),
-    stepSize = max(1, div(nVals, 10)),
+    nvals = 1;
+    maxiter = 1000,
+    initvec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    tolconv = sqrt(eps(real(eltype(initvec)))),
+    tolreorth = sqrt(eps(real(eltype(initvec)))),
+    stepsize = max(1, div(nvals, 10)),
     debug = false)
 
-    Tv = eltype(initVec)
+    Tv = eltype(initvec)
     Tr = real(Tv)
 
     # I need to append βs with a zero at each iteration. Tt is much easier for type inference if it is a vector with the right element type
@@ -126,8 +126,8 @@ function _tsvd(A,
 
     # initialize the αs, βs, U and V. Use result of first matvec to infer the correct types.
     # So the first iteration is run here, but slightly differently from the rest of the iterations
-    nrmInit = norm(initVec)
-    v = A'initVec
+    nrmInit = norm(initvec)
+    v = A'initvec
     scale!(v, inv(nrmInit))
     α = norm(v)
     scale!(v, inv(α))
@@ -136,7 +136,7 @@ function _tsvd(A,
 
     u = A*v
     uOld = similar(u)
-    copy!(uOld, initVec)
+    copy!(uOld, initvec)
     scale!(uOld, inv(nrmInit))
     axpy!(eltype(u)(-α), uOld, u)
     β = norm(u)
@@ -161,10 +161,10 @@ function _tsvd(A,
     μs::Vector{Tr},
     νs::Vector{Tr},
     reorth_μ::Bool, maxμ, maxν, _ =
-        biLanczosIterations(A, nVals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolReorth, debug)
+        biLanczosIterations(A, nvals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolreorth, debug)
 
     # Iteration count
-    iter = nVals
+    iter = nvals
 
     # Save the estimates of the maximum angles between Lanczos vectors
     append!(maxμs, maxμ)
@@ -174,24 +174,24 @@ function _tsvd(A,
     vals1 = vals0
 
     hasConv = false
-    while iter <= maxIter
+    while iter <= maxiter
         _tmp, _tmp, _tmp, _tmp, _tmp, _tmp, reorth_μ, maxμ, maxν, _tmp =
-            biLanczosIterations(A, stepSize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolReorth, debug)
+            biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolreorth, debug)
         append!(maxμs, maxμ)
         append!(maxνs, maxν)
-        iter += stepSize
+        iter += stepsize
 
         # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
         vals1 = svdvals(Bidiagonal([αs;z], βs, false))
 
-        debug && @show vals1[nVals]/vals0[nVals] - 1
+        debug && @show vals1[nvals]/vals0[nvals] - 1
 
-        if vals0[nVals]*(1 - tolConv) < vals1[nVals] < vals0[nVals]*(1 + tolConv)
+        if vals0[nvals]*(1 - tolconv) < vals1[nvals] < vals0[nvals]*(1 + tolconv)
             # UU, ss, VV = svd(Bidiagonal([αs;z], βs[1:end-1], false))
             # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
             UU, ss, VV = svd(Bidiagonal([αs;z], βs, false))
             # @show UU[end, 1:iter]*βs[end]
-            if all(abs.(UU[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals]) && all(abs.(VV[end, 1:nVals])*βs[end] .< tolConv*ss[1:nVals])
+            if all(abs.(UU[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals]) && all(abs.(VV[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals])
                 hasConv = true
                 break
             end
@@ -234,9 +234,9 @@ function _tsvd(A,
     B = Bidiagonal(αs, βs[1:end-1], false)
     smU, sms, smV = svd(B)
 
-    return (mU*smU)[:,1:nVals],
-        sms[1:nVals],
-        (mV*smV)[:,1:nVals],
+    return (mU*smU)[:,1:nvals],
+        sms[1:nvals],
+        (mV*smV)[:,1:nvals],
         Bidiagonal(αs, βs[1:end-1], false),
         mU,
         mV,
@@ -245,7 +245,7 @@ function _tsvd(A,
 end
 
 """
-    tsvd(A, nVals = 1; [maxIter, initVec, tolConv, tolReorth, debug])
+    tsvd(A, nvals = 1; [maxiter, initvec, tolconv, tolreorth, debug])
 
 Computes the truncated singular value decomposition (TSVD) by Lanczos bidiagonalization of the operator `A`. The Lanczos vectors are partially orthogonalized as described in
 
@@ -264,21 +264,21 @@ and
 
     Ac_mul_B!(α::Number, A, x::AbstractVector, β::Number, y::AbstractVector)
 
-corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be either the identity or the conjugate transpose of `A`. If the `initVec` argument is not supplied then it is furthermore required that `A` supports `eltype` and `size`.
+corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be either the identity or the conjugate transpose of `A`. If the `initvec` argument is not supplied then it is furthermore required that `A` supports `eltype` and `size`.
 
-- `nVals`: The number of singular values and vectors to compute. Default is one (the largest).
+- `nvals`: The number of singular values and vectors to compute. Default is one (the largest).
 
 
 
 # Keyword arguments:
 
-- `maxIter`: The maximum number of iterations of the Lanczos bidiagonalization. Default is 1000, but usually much fewer iterations are needed.
+- `maxiter`: The maximum number of iterations of the Lanczos bidiagonalization. Default is 1000, but usually much fewer iterations are needed.
 
-- `initVec`: Initial `U` vector for the Lanczos procesdure. Default is a vector of Gaussian random variates. The `length` and `eltype` of the `initVec` will control the size and element types of the basis vectors in `U` and `V`.
+- `initvec`: Initial `U` vector for the Lanczos procesdure. Default is a vector of Gaussian random variates. The `length` and `eltype` of the `initvec` will control the size and element types of the basis vectors in `U` and `V`.
 
-- `tolConv`: Relative convergence criterion for the singular values. Default is `sqrt(eps(real(eltype(A))))`.
+- `tolconv`: Relative convergence criterion for the singular values. Default is `sqrt(eps(real(eltype(A))))`.
 
-- `tolReorth`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `sqrt(eps(real(eltype(initVec))))`. `0.0` and `Inf` correspond to complete and no reorthogonalization respectively.
+- `tolreorth`: Absolute tolerance for the inner product of the Lanczos vectors as measured by the ω recurrence. Default is `sqrt(eps(real(eltype(initvec))))`. `0.0` and `Inf` correspond to complete and no reorthogonalization respectively.
 
 - `debug`: Boolean flag for printing debug information
 
@@ -288,9 +288,9 @@ corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be eithe
 
 The output of the procesure it the truple tuple `(U, s, V)`
 
-- `U`: `size(A, 1)` times `nVals` matrix of left singular vectors.
-- `s`: Vector of length `nVals` of the singular values of `A`.
-- `V`: `size(A, 2)` times `nVals` matrix of right singular vectors.
+- `U`: `size(A, 1)` times `nvals` matrix of left singular vectors.
+- `s`: Vector of length `nvals` of the singular values of `A`.
+- `V`: `size(A, 2)` times `nvals` matrix of right singular vectors.
 
 
 
@@ -328,15 +328,15 @@ julia> s
 ```
 """
 tsvd(A,
-    nVals = 1;
-    maxIter = 1000,
-    initVec = convert(Vector{eltype(A)}, randn(size(A,1))),
-    tolConv = sqrt(eps(real(eltype(initVec)))),
-    tolReorth = sqrt(eps(real(eltype(initVec)))),
-    stepSize = max(1, div(nVals, 10)),
+    nvals = 1;
+    maxiter = 1000,
+    initvec = convert(Vector{eltype(A)}, randn(size(A,1))),
+    tolconv = sqrt(eps(real(eltype(initvec)))),
+    tolreorth = sqrt(eps(real(eltype(initvec)))),
+    stepsize = max(1, div(nvals, 10)),
     debug = false) =
-        _tsvd(A, nVals, maxIter = maxIter, initVec = initVec, tolConv = tolConv,
-            tolReorth = tolReorth, debug = debug)[1:3]
+        _tsvd(A, nvals, maxiter = maxiter, initvec = initvec, tolconv = tolconv,
+            tolreorth = tolreorth, debug = debug)[1:3]
 
 
 ### SVD by Lanczos on A'A
@@ -377,14 +377,14 @@ function (*)(A::AtA{T}, x::AbstractMatrix) where T
 end
 
 function tsvd2(A,
-    nVals = 1;
-    maxIter = minimum(size(A)),
-    initVec = convert(Vector{eltype(A)}, randn(size(A,2))),
-    tolConv = sqrt(eps(real(eltype(A)))),
-    stepSize = max(1, div(nVals, 10)),
+    nvals = 1;
+    maxiter = minimum(size(A)),
+    initvec = convert(Vector{eltype(A)}, randn(size(A,2))),
+    tolconv = sqrt(eps(real(eltype(A)))),
+    stepsize = max(1, div(nvals, 10)),
     debug = false)
-    values, vectors, S, lanczosVecs = _teig(AtA(A, initVec), nVals, maxIter = maxIter,
-        initVec = initVec, tolConv = tolConv, stepSize = stepSize, debug = debug)
+    values, vectors, S, lanczosVecs = _teig(AtA(A, initvec), nvals, maxiter = maxiter,
+        initvec = initvec, tolconv = tolconv, stepsize = stepsize, debug = debug)
     mV = hcat(lanczosVecs[1:end-1])*vectors
-    return sqrt.(reverse(values)[1:nVals]), mV[:,end:-1:1][:,1:nVals]
+    return sqrt.(reverse(values)[1:nvals]), mV[:,end:-1:1][:,1:nvals]
 end
