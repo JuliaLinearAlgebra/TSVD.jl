@@ -7,9 +7,10 @@ module TSVD
     export tsvd
 
     import Base: *, hcat, maximum, size
-    import Base.LinAlg: A_mul_B!, Ac_mul_B!, axpy!
+    import LinearAlgebra: A_mul_B!, Ac_mul_B!, axpy!, mul!
 
-    using Base.LinAlg: BlasComplex, BlasFloat, BlasReal, givensAlgorithm
+    using LinearAlgebra
+    using LinearAlgebra: BlasComplex, BlasFloat, BlasInt, BlasReal
 
     include("common.jl")
     include("eig.jl")

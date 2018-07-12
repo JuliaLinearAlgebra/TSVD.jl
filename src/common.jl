@@ -13,11 +13,32 @@ function hcat(x::Vector{T}) where T<:AbstractVecOrMat
     end
 end
 
-A_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasFloat} = BLAS.gemv!('N', convert(T, α), A, x, convert(T, β), y)
-Ac_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasReal} = BLAS.gemv!('T', convert(T, α), A, x, convert(T, β), y)
-Ac_mul_B!(α::Number, A::StridedMatrix{T}, x::StridedVector{T}, β::Number, y::StridedVector{T}) where {T<:BlasComplex} = BLAS.gemv!('C', convert(T, α), A, x, convert(T, β), y)
+mul!(y::StridedVector{T},
+     A::StridedMatrix{T},
+     x::StridedVector{T},
+     α::Number,
+     β::Number) where {T<:BlasFloat} =
+    BLAS.gemv!('N', convert(T, α), A, x, convert(T, β), y)
 
-function A_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y::StridedVector)
+mul!(y::StridedVector{T},
+     A::Adjoint{T,<:StridedMatrix{T}},
+     x::StridedVector{T},
+     α::Number,
+     β::Number) where {T<:BlasReal} =
+    BLAS.gemv!('T', convert(T, α), parent(A), x, convert(T, β), y)
+
+mul!(y::StridedVector{T},
+     A::Adjoint{T,<:StridedMatrix{T}},
+     x::StridedVector{T},
+     α::Number,
+     β::Number) where {T<:BlasComplex} =
+    BLAS.gemv!('C', convert(T, α), parent(A), x, convert(T, β), y)
+
+# @deprecate A_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)  mul!(y, A, x, α, β)
+# @deprecate Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector) mul!(y, A', x, α, β)
+# @deprecate Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector) mul!(y, A', x, α, β)
+
+function mul!(y::StridedVector, A::StridedMatrix, x::StridedVector, α::Number, β::Number)
     n = length(y)
     for i = 1:n
         y[i] *= β
@@ -30,7 +51,7 @@ function A_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y:
     return y
 end
 
-function Ac_mul_B!(α::Number, A::StridedMatrix, x::StridedVector, β::Number, y::StridedVector)
+function mul!(y::StridedVector, A::Adjoint{<:StridedMatrix}, x::StridedVector, α::Number, β::Number)
     n = length(y)
     for i = 1:n
         y[i] *= β
@@ -45,6 +66,6 @@ end
 
 function qr!(x::AbstractArray)
     nm = norm(x)
-    scale!(x, inv(nm))
+    rmul!(x, inv(nm))
     return x, nm
 end

@@ -15,7 +15,7 @@ function lanczosIterations(A, stepsize, αs, βs, vs, reorthogonalize)
         # Orthogonlize (FixMe! consider a partial reorthogonal strategy here)
         if reorthogonalize
             for j = 1:i - 1
-                Base.axpy!(-dot(vs[j], w), vs[j], w)
+                axpy!(-dot(vs[j], w), vs[j], w)
             end
         end
 
@@ -45,7 +45,7 @@ function _teig(A,
     v1 = A*initvec
     v0 = convert(typeof(v1), initvec)
     v0, nm0 = qr!(v0)
-    scale!(v1, inv(nm0)) # because we don't assume that initvec is normalized
+    rmul!(v1, inv(nm0)) # because we don't assume that initvec is normalized
     α = real(dot(v1, v0))
     axpy!(-α, v0, v1)
     v1, β = qr!(v1)
@@ -70,7 +70,7 @@ function _teig(A,
     while iter <= maxiter
         lanczosIterations(A, stepsize, αs, βs, vs, reorthogonalize)
         # values, vectors = LinearAlgebra.EigenSelfAdjoint.eigQL!(SymTridiagonal(copy(αs), βs[1:end - 1]), [zeros(length(αs) - 1); ones(eltype(αs), 1)]')
-        values, vectors = eig(SymTridiagonal(αs, βs[1:end-1]))
+        values, vectors = eigen(SymTridiagonal(αs, βs[1:end-1]))
 
         ### Use criteria (9.18) of Peter Arbenz' lecture notes ###
         βj = βs[end]
@@ -100,7 +100,7 @@ function _teig(A,
     end
 
     S = SymTridiagonal(αs, βs[1:end-1])
-    values, vectors = eig(S)
+    values, vectors = eigen(S)
     return values[converged], vectors[:, converged], S, vs, βs[end]
 end
 

@@ -1,5 +1,4 @@
-using TSVD
-using Base.Test
+using Test, TSVD, LinearAlgebra, SparseArrays
 
 @testset "test tsvd with m = $m, n = $n, and p = $p" for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
     mnp = round(Integer, m*n*p)
@@ -9,7 +8,7 @@ using Base.Test
               sprandn(m, n, p),
               sparse(rand(1:m, mnp), rand(1:n, mnp), complex.(randn(mnp), randn(mnp)), m, n))
 
-        Uf, sf, Vf = svd(full(A))
+        Uf, sf, Vf = svd(Array(A))
 
         for k = 1:5
             U, s, V = TSVD.tsvd(A, k)
@@ -28,5 +27,5 @@ end
 
 @testset "Issue 9" begin
     data = rand(1:100, 50, 50)
-    TSVD.tsvd(data,2)
+    @test TSVD.tsvd(data, 2)[2] ≈ svdvals(data)[1:2]
 end

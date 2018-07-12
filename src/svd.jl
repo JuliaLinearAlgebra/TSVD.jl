@@ -49,7 +49,7 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
         if reorth_ν || reorth_μ
             debug && println("Reorth v")
             for i in 1:j - 1
-                axpy!(-Base.dot(V[i], v), V[i], v)
+                axpy!(-dot(V[i], v), V[i], v)
                 νs[i] = eps(Tr)
                 nReorthVecs += 1
             end
@@ -58,7 +58,7 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
 
         ## update the result vectors
         push!(αs, α)
-        scale!(v, inv(α))
+        rmul!(v, inv(α))
         push!(V, v)
 
         # The u step
@@ -92,7 +92,7 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
         if reorth_ν || reorth_μ
             debug && println("Reorth u")
             for i in 1:j
-                axpy!(-Base.dot(U[i], u), U[i], u)
+                axpy!(-dot(U[i], u), U[i], u)
                 μs[i] = eps(Tr)
                 nReorthVecs += 1
             end
@@ -102,7 +102,7 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
 
         ## update the result vectors
         push!(βs, β)
-        scale!(u, inv(β))
+        rmul!(u, inv(β))
         push!(U, u)
     end
 
@@ -128,19 +128,19 @@ function _tsvd(A,
     # So the first iteration is run here, but slightly differently from the rest of the iterations
     nrmInit = norm(initvec)
     v = A'initvec
-    scale!(v, inv(nrmInit))
+    rmul!(v, inv(nrmInit))
     α = norm(v)
-    scale!(v, inv(α))
+    rmul!(v, inv(α))
     V = fill(v, 1)
     αs = fill(α, 1)
 
     u = A*v
     uOld = similar(u)
-    copy!(uOld, initvec)
-    scale!(uOld, inv(nrmInit))
+    copyto!(uOld, initvec)
+    rmul!(uOld, inv(nrmInit))
     axpy!(eltype(u)(-α), uOld, u)
     β = norm(u)
-    scale!(u, inv(β))
+    rmul!(u, inv(β))
     U = typeof(u)[uOld, u]
     βs = fill(β, 1)
 
@@ -169,8 +169,8 @@ function _tsvd(A,
     # Save the estimates of the maximum angles between Lanczos vectors
     append!(maxμs, maxμ)
 
-    # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
-    vals0 = svdvals(Bidiagonal([αs;z], βs, false))
+    # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], :L))
+    vals0 = svdvals(Bidiagonal([αs;z], βs, :L))
     vals1 = vals0
 
     hasConv = false
@@ -181,15 +181,15 @@ function _tsvd(A,
         append!(maxνs, maxν)
         iter += stepsize
 
-        # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], false))
-        vals1 = svdvals(Bidiagonal([αs;z], βs, false))
+        # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], :L))
+        vals1 = svdvals(Bidiagonal([αs;z], βs, :L))
 
         debug && @show vals1[nvals]/vals0[nvals] - 1
 
         if vals0[nvals]*(1 - tolconv) < vals1[nvals] < vals0[nvals]*(1 + tolconv)
-            # UU, ss, VV = svd(Bidiagonal([αs;z], βs[1:end-1], false))
+            # UU, ss, VV = svd(Bidiagonal([αs;z], βs[1:end-1], :L))
             # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
-            UU, ss, VV = svd(Bidiagonal([αs;z], βs, false))
+            UU, ss, VV = svd(Bidiagonal([αs;z], βs, :L))
             # @show UU[end, 1:iter]*βs[end]
             if all(abs.(UU[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals]) && all(abs.(VV[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals])
                 hasConv = true
@@ -231,13 +231,13 @@ function _tsvd(A,
     # Calculate the bidiagonal SVD and update U and V
     mU = hcat(U[1:end-1])
     mV = hcat(V)
-    B = Bidiagonal(αs, βs[1:end-1], false)
+    B = Bidiagonal(αs, βs[1:end-1], :L)
     smU, sms, smV = svd(B)
 
     return (mU*smU)[:,1:nvals],
         sms[1:nvals],
         (mV*smV)[:,1:nvals],
-        Bidiagonal(αs, βs[1:end-1], false),
+        Bidiagonal(αs, βs[1:end-1], :L),
         mU,
         mV,
         maxμs,
@@ -361,20 +361,35 @@ function size(A::AtA, i::Integer)
 end
 size(A::AtA) = (size(A, 1), size(A, 2))
 
-function A_mul_B!(α::T, A::AtA{T,S,V}, x::AbstractVecOrMat{T}, β::T, y::AbstractVecOrMat{T}) where {T,S,V}
-    A_mul_B!(one(T), A.matrix, x, zero(T), A.vector)
-    Ac_mul_B!(α, A.matrix, A.vector, β, y)
+# Split Vector and Matrix to avoid ambiguity
+function mul!(y::AbstractVector{T},
+              A::AtA{T,S,V},
+              x::AbstractVector{T},
+              α::T = one(T),
+              β::T = zero(T)) where {T,S,V}
+    mul!(A.vector, A.matrix, x, one(T), zero(T))
+    mul!(y, A.matrix', A.vector, α, β)
     return y
 end
-# Split Vector and Matrix to avoid ambiguity
-function (*)(A::AtA{T}, x::AbstractVector) where T
-    A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
-    return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
+function mul!(y::AbstractMatrix{T},
+              A::AtA{T,S,V},
+              x::AbstractMatrix{T},
+              α::T = one(T),
+              β::T = zero(T)) where {T,S,V}
+    mul!(A.vector, A.matrix, x, one(T), zero(T))
+    mul!(y, A.matrix', A.vector, α, β)
+    return y
 end
-function (*)(A::AtA{T}, x::AbstractMatrix) where T
-    A_mul_B!(one(T), A.matrix, convert(typeof(A.vector), x), zero(T), A.vector)
-    return Ac_mul_B!(one(T), A.matrix, A.vector, zero(T), similar(A.vector, size(x)))
-end
+(*)(A::AtA, x::AbstractVector) = mul!(similar(A.vector, size(x)), A, x)
+(*)(A::AtA, x::AbstractMatrix) = mul!(similar(A.vector, size(x)), A, x)
+# function (*)(A::AtA{T}, x::AbstractVector) where T
+#     mul!(A.vector, A.matrix, convert(typeof(A.vector), x), one(T), zero(T))
+#     return mul!(similar(A.vector, size(x)), A.matrix', A.vector, one(T), zero(T))
+# end
+# function (*)(A::AtA{T}, x::AbstractMatrix) where T
+#     mul!(A.vector, A.matrix, convert(typeof(A.vector), x), one(T), zero(T))
+#     return mul!(similar(A.vector, size(x)), A.matrix', A.vector, one(T), zero(T))
+# end
 
 function tsvd2(A,
     nvals = 1;
