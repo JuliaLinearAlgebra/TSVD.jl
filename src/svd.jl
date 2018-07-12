@@ -258,11 +258,11 @@ R. M. Larsen, *Lanczos bidiagonalization with partial reorthogonalization*, Depa
 - `A`: Anything that supports the in place update operations
 
 
-    A_mul_B!(α::Number, A, x::AbstractVector, β::Number, y::AbstractVector)
+    mul!(y::AbstractVector, A, x::AbstractVector, α::Number, β::Number)
 
 and
 
-    Ac_mul_B!(α::Number, A, x::AbstractVector, β::Number, y::AbstractVector)
+    mul!(y::AbstractVector, A::Adjoint, x::AbstractVector, α::Number, β::Number)
 
 corresponding to the operations `y := α*op(A)*x + β*y` where `op` can be either the identity or the conjugate transpose of `A`. If the `initvec` argument is not supplied then it is furthermore required that `A` supports `eltype` and `size`.
 
@@ -382,14 +382,6 @@ function mul!(y::AbstractMatrix{T},
 end
 (*)(A::AtA, x::AbstractVector) = mul!(similar(A.vector, size(x)), A, x)
 (*)(A::AtA, x::AbstractMatrix) = mul!(similar(A.vector, size(x)), A, x)
-# function (*)(A::AtA{T}, x::AbstractVector) where T
-#     mul!(A.vector, A.matrix, convert(typeof(A.vector), x), one(T), zero(T))
-#     return mul!(similar(A.vector, size(x)), A.matrix', A.vector, one(T), zero(T))
-# end
-# function (*)(A::AtA{T}, x::AbstractMatrix) where T
-#     mul!(A.vector, A.matrix, convert(typeof(A.vector), x), one(T), zero(T))
-#     return mul!(similar(A.vector, size(x)), A.matrix', A.vector, one(T), zero(T))
-# end
 
 function tsvd2(A,
     nvals = 1;

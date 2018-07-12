@@ -34,10 +34,6 @@ mul!(y::StridedVector{T},
      β::Number) where {T<:BlasComplex} =
     BLAS.gemv!('C', convert(T, α), parent(A), x, convert(T, β), y)
 
-# @deprecate A_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector)  mul!(y, A, x, α, β)
-# @deprecate Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector) mul!(y, A', x, α, β)
-# @deprecate Ac_mul_B!(α::Number, A::AbstractMatrix, x::AbstractVector, β::Number, y::AbstractVector) mul!(y, A', x, α, β)
-
 function mul!(y::StridedVector, A::StridedMatrix, x::StridedVector, α::Number, β::Number)
     n = length(y)
     for i = 1:n
