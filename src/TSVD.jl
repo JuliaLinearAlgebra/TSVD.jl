@@ -1,13 +1,13 @@
 # Copyright 2015-2018 Andreas Noack
 
-__precompile__()
+# __precompile__() # not sure from which Julia version on this is obsolete
 
 module TSVD
 
     export tsvd
 
     import Base: *, hcat, maximum, size
-    import LinearAlgebra: A_mul_B!, Ac_mul_B!, axpy!, mul!
+    import LinearAlgebra: axpy!, mul!
 
     using LinearAlgebra
     using LinearAlgebra: BlasComplex, BlasFloat, BlasInt, BlasReal
