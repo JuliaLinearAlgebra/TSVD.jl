@@ -1,13 +1,10 @@
 # Copyright 2015-2018 Andreas Noack
-
-__precompile__()
-
 module TSVD
 
     export tsvd
 
     import Base: *, hcat, maximum, size
-    import LinearAlgebra: A_mul_B!, Ac_mul_B!, axpy!, mul!
+    import LinearAlgebra: axpy!, mul!
 
     using LinearAlgebra
     using LinearAlgebra: BlasComplex, BlasFloat, BlasInt, BlasReal
