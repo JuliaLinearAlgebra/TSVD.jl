@@ -1,7 +1,4 @@
 # Copyright 2015-2018 Andreas Noack
-
-# __precompile__() # not sure from which Julia version on this is obsolete
-
 module TSVD
 
     export tsvd
