@@ -1,6 +1,13 @@
 using Test, TSVD, LinearAlgebra, SparseArrays
 
-@testset "test tsvd with m = $m, n = $n, and p = $p" for (m, n, p) = ((10, 6, 0.8), (100, 60, 0.1))
+@testset "test tsvd with m = $m, n = $n, and p = $p" for
+    (m, n, p) in ((10, 6, 0.8),
+                  (6, 10, 0.8),
+                  (10, 10, 0.8),
+                  (100, 60, 0.1),
+                  (60, 100, 0.1),
+                  (100, 100, 0.1))
+
     mnp = round(Integer, m*n*p)
 
     for A in (randn(m, n),

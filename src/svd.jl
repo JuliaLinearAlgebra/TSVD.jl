@@ -169,10 +169,6 @@ function _tsvd(A,
     # Save the estimates of the maximum angles between Lanczos vectors
     append!(maxμs, maxμ)
 
-    # vals0 = svdvals(Bidiagonal(αs, βs[1:end-1], :L))
-    vals0 = svdvals(Bidiagonal([αs;z], βs, :L))
-    vals1 = vals0
-
     hasConv = false
     while iter <= maxiter
         _tmp, _tmp, _tmp, _tmp, _tmp, _tmp, reorth_μ, maxμ, maxν, _tmp =
@@ -181,23 +177,21 @@ function _tsvd(A,
         append!(maxνs, maxν)
         iter += stepsize
 
-        # vals1 = svdvals(Bidiagonal(αs, βs[1:end-1], :L))
-        vals1 = svdvals(Bidiagonal([αs;z], βs, :L))
+        # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
+        UU, ss, VV = svd(Bidiagonal([αs;z], βs, :L))
 
-        debug && @show vals1[nvals]/vals0[nvals] - 1
+        debug && @show βs[end]
 
-        if vals0[nvals]*(1 - tolconv) < vals1[nvals] < vals0[nvals]*(1 + tolconv)
-            # UU, ss, VV = svd(Bidiagonal([αs;z], βs[1:end-1], :L))
-            # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
-            UU, ss, VV = svd(Bidiagonal([αs;z], βs, :L))
-            # @show UU[end, 1:iter]*βs[end]
-            if all(abs.(UU[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals]) && all(abs.(VV[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals])
-                hasConv = true
-                break
-            end
+        # Test for convergence. A Ritzvalue is considered converged if
+        # either the last component of the corresponding vector is (relatively)
+        # small or if the last component in βs is small (or both)
+        if all(abs.(UU[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals]) &&
+           all(abs.(VV[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals])
+            hasConv = true
+            break
         end
-        vals0 = vals1
-        τ = eps(eltype(vals1))*vals1[1]
+
+        τ = eps(eltype(ss))*ss[1]
 
         debug && @show iter
         debug && @show τ
