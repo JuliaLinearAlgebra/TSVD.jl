@@ -4,8 +4,7 @@
 ```@meta
 CurrentModule = TSVD
 DocTestSetup = quote
-    using MatrixDepot, TSVD, Random
-    Random.seed!(123)
+    using MatrixDepot, TSVD
     try
         matrixdepot("Rucci/Rucci1", :get)
     catch
