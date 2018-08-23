@@ -292,7 +292,7 @@ The output of the procesure it the truple tuple `(U, s, V)`
 
 ```jldoctest
 julia> A = matrixdepot("Rucci/Rucci1", :r)
-1977885×109900 SparseMatrixCSC{Float64,Int64} with 7791168 stored entries:
+1977885×109900 SparseArrays.SparseMatrixCSC{Float64,Int64} with 7791168 stored entries:
   [1      ,       1]  =  0.167285
   [2      ,       1]  =  0.111776
   [3      ,       1]  =  0.0746865
@@ -300,7 +300,10 @@ julia> A = matrixdepot("Rucci/Rucci1", :r)
   [209    ,       1]  =  0.0300765
   [210    ,       1]  =  0.0128504
   [415    ,       1]  =  0.00777096
+  [416    ,       1]  =  0.000983792
+  [417    ,       1]  =  0.000124547
   ⋮
+  [1977261,  109900]  =  0.025269
   [1977263,  109900]  =  0.0618182
   [1977264,  109900]  =  0.151233
   [1977675,  109900]  =  0.0869268
@@ -314,11 +317,11 @@ julia> U, s, V = tsvd(A, 5);
 
 julia> s
 5-element Array{Float64,1}:
- 7.06874
- 6.98525
- 6.96246
- 6.88948
- 6.86255
+ 7.068742927985111
+ 6.98525314080272
+ 6.962457565929406
+ 6.8894752054672725
+ 6.86255192071247
 ```
 """
 tsvd(A,
