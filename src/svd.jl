@@ -109,6 +109,57 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
     return αs, βs, U, V, μs, νs, reorth_μ, maxμs, maxνs, nReorth, nReorthVecs
 end
 
+using StaticArrays: similar_type, Size
+function biLanczosIterations(A, initvec, steps)
+
+    # Initialize
+    nrmInit = norm(initvec)
+    v  = A'initvec
+    v /= nrmInit
+    α  = norm(v)
+    v /= α
+    V  = v
+    αs = similar_type(initvec, Size(1))(α)
+
+    uOld = initvec/nrmInit
+    u  = A*v - α*uOld
+    β  = norm(u)
+    u /= β
+    U  = [uOld u]
+    βs = similar_type(initvec, Size(1))(β)
+
+    for j in 1:steps
+
+        # A'u
+        v = A'u - β*v
+        ## reorthogonalize
+        for i in 1:j - 1
+            v -= V[:,i]*(V[:,i]'v)
+        end
+
+        α  = norm(v)
+        v /= α
+        αs = vcat(αs, similar_type(αs, Size(1))(α))
+        V  = hcat(V, v)
+
+
+
+        # A*v
+        u  = A*v - α*u
+        ## reorthogonalize
+        for i in 1:j
+            u -= U[:,i]*(U[:,i]'u)
+        end
+
+        β  = norm(u)
+        u /= β
+        βs = vcat(βs, similar_type(βs, Size(1))(β))
+        U  = hcat(U, u)
+
+    end
+    return αs, βs, U, V
+end
+
 function _tsvd(A,
     nvals = 1;
     maxiter = 1000,
