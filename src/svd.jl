@@ -109,38 +109,46 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
     return αs, βs, U, V, μs, νs, reorth_μ, maxμs, maxνs, nReorth, nReorthVecs
 end
 
-using StaticArrays: similar_type, Size
-function biLanczosIterations(A, initvec, steps)
+using StaticArrays: similar_type, Size, setindex
+function biLanczosIterations(A, initvec, maxsteps)
+
+    m, n = size(A)
 
     # Initialize
+    U  = zeros(similar_type(initvec, typeof(initvec), Size(maxsteps + 1)))
+    V  = zeros(similar_type(initvec, typeof(initvec), Size(maxsteps)))
+    αs = zeros(similar_type(initvec, Size(maxsteps)))
+    βs = zeros(similar_type(initvec, Size(maxsteps)))
+
     nrmInit = norm(initvec)
     v  = A'initvec
     v /= nrmInit
     α  = norm(v)
     v /= α
-    V  = v
-    αs = similar_type(initvec, Size(1))(α)
+    V  = setindex(V, v, 1)
+    αs = setindex(αs, α, 1)
 
     uOld = initvec/nrmInit
     u  = A*v - α*uOld
     β  = norm(u)
     u /= β
-    U  = [uOld u]
-    βs = similar_type(initvec, Size(1))(β)
+    U  = setindex(U, uOld, 1)
+    U  = setindex(U, u, 2)
+    βs = setindex(βs, β, 1)
 
-    for j in 1:steps
+    for j in 2:maxsteps
 
         # A'u
         v = A'u - β*v
         ## reorthogonalize
         for i in 1:j - 1
-            v -= V[:,i]*(V[:,i]'v)
+            v -= V[i]*(V[i]'v)
         end
 
         α  = norm(v)
         v /= α
-        αs = vcat(αs, similar_type(αs, Size(1))(α))
-        V  = hcat(V, v)
+        αs = setindex(αs, α, j)
+        V  = setindex(V, v, j)
 
 
 
@@ -148,13 +156,13 @@ function biLanczosIterations(A, initvec, steps)
         u  = A*v - α*u
         ## reorthogonalize
         for i in 1:j
-            u -= U[:,i]*(U[:,i]'u)
+            u -= U[i]*(U[i]'u)
         end
 
         β  = norm(u)
         u /= β
-        βs = vcat(βs, similar_type(βs, Size(1))(β))
-        U  = hcat(U, u)
+        βs = setindex(βs, β, j)
+        U  = setindex(U, u, j + 1)
 
     end
     return αs, βs, U, V
