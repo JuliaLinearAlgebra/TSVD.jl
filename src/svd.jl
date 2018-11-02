@@ -1,4 +1,4 @@
-function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_in, tolreorth, debug)
+function _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxνs, maxμs, τ, reorth_in, tolreorth, debug)
 
     m, n = size(A)
     reorth_μ = reorth_in
@@ -7,9 +7,6 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
 
     T = eltype(eltype(U))
     Tr = real(T)
-
-    maxνs = Tr[]
-    maxμs = Tr[]
 
     iter = length(αs)
 
@@ -106,10 +103,10 @@ function biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_i
         push!(U, u)
     end
 
-    return αs, βs, U, V, μs, νs, reorth_μ, maxμs, maxνs, nReorth, nReorthVecs
+    return reorth_μ
 end
 
-function _tsvd(A,
+function biLanczos(A,
     nvals = 1;
     maxiter = 1000,
     initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
@@ -153,28 +150,21 @@ function _tsvd(A,
     maxμs = Tr[]
     maxνs = Tr[]
 
-    # return types can only be inferred by man, not the machine
-    αs::Vector{Tr},
-    βs::Vector{Tr},
-    U::Vector{typeof(v)}, # for some reason typeof(U) doesn't work here
-    V::Vector{typeof(v)},
-    μs::Vector{Tr},
-    νs::Vector{Tr},
-    reorth_μ::Bool, maxμ, maxν, _ =
-        biLanczosIterations(A, nvals - 1, αs, βs, U, V, [μ, 1], [one(μ)], τ, false, tolreorth, debug)
+    μs = Tr[μ, 1]
+    νs = Tr[one(μ)]
+
+    reorth_μ = _biLanczosIterations!(A, nvals - 1, αs, βs, U, V, μs, νs, maxμs, maxνs, τ, false, tolreorth, debug)
 
     # Iteration count
     iter = nvals
 
     # Save the estimates of the maximum angles between Lanczos vectors
-    append!(maxμs, maxμ)
+    # append!(maxμs, maxμ)
 
     hasConv = false
     while iter <= maxiter
-        _tmp, _tmp, _tmp, _tmp, _tmp, _tmp, reorth_μ, maxμ, maxν, _tmp =
-            biLanczosIterations(A, stepsize, αs, βs, U, V, μs, νs, τ, reorth_μ, tolreorth, debug)
-        append!(maxμs, maxμ)
-        append!(maxνs, maxν)
+
+        reorth_μ = _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxμs, maxνs, τ, reorth_μ, tolreorth, debug)
         iter += stepsize
 
         # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
@@ -222,18 +212,50 @@ function _tsvd(A,
     #     end
     # end
 
-    # Calculate the bidiagonal SVD and update U and V
-    mU = hcat(U[1:end-1])
-    mV = hcat(V)
-    B = Bidiagonal(αs, βs[1:end-1], :L)
+    return U, Bidiagonal(αs, βs[1:end-1], :L), V, maxμs, maxνs
+end
+
+function _tsvd(A,
+    nvals = 1;
+    maxiter = 1000,
+    # The initial vector is critical in determining the output type.
+    # We use the result of A*initvec to detemine the storage type for
+    # the Lanczos vectors. Hence, the user would need to either
+    # have an appropriate multiplication method defined or supply
+    # an appropriate initial vector.
+    initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
+    tolconv = sqrt(eps(real(eltype(initvec)))),
+    tolreorth = sqrt(eps(real(eltype(initvec)))),
+    stepsize = max(1, div(nvals, 10)),
+    debug = false)
+
+    U, B, V, maxμs, maxνs = biLanczos(A,
+        nvals;
+        maxiter = maxiter,
+        initvec = initvec,
+        tolconv = tolconv,
+        tolreorth = tolreorth,
+        stepsize = stepsize,
+        debug = debug)
+
+    # Calculate the bidiagonal SVD
     smU, sms, smV = svd(B)
 
-    return (mU*smU)[:,1:nvals],
+    # Create matrices from the Vectors of vectors and update U and V
+    mU = hcat(U[1:end-1])
+    mV = hcat(V)
+
+    # Adapt the matrix type of the (LAPACK) SVD matrices to the type of mU and mV
+    # E.g. if the vectors have been stored on a GPU device or on a distributed
+    # system, this step will ensure that the result ends up where A/initvec is stored
+    mUall = mU*adapt(typeof(initvec), smU)
+    mVall = mV*adapt(typeof(initvec), smV)
+    msall = adapt(typeof(initvec), sms)
+
+    return mUall[:,1:nvals],
         sms[1:nvals],
-        (mV*smV)[:,1:nvals],
-        Bidiagonal(αs, βs[1:end-1], :L),
-        mU,
-        mV,
+        mVall[:,1:nvals],
+        B,
         maxμs,
         maxνs
 end
