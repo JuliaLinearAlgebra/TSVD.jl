@@ -8,6 +8,7 @@ module TSVD
 
     using LinearAlgebra
     using LinearAlgebra: BlasComplex, BlasFloat, BlasInt, BlasReal
+    using Adapt: adapt
 
     include("common.jl")
     include("eig.jl")
