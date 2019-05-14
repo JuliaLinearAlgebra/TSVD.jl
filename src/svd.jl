@@ -108,12 +108,17 @@ end
 
 function biLanczos(A,
     nvals = 1;
-    maxiter = 1000,
+    maxiter = min(size(A)..., 1000),
     initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
     tolconv = sqrt(eps(real(eltype(initvec)))),
     tolreorth = sqrt(eps(real(eltype(initvec)))),
     stepsize = max(1, div(nvals, 10)),
     debug = false)
+
+    # Check inputs
+    if maxiter > min(size(A)...)
+        throw(ArgumentError("Maximum number of iterations cannot be larger than the smallest dimension of the input array"))
+    end
 
     Tv = eltype(initvec)
     Tr = real(Tv)
@@ -153,30 +158,42 @@ function biLanczos(A,
     μs = Tr[μ, 1]
     νs = Tr[one(μ)]
 
-    reorth_μ = _biLanczosIterations!(A, nvals - 1, αs, βs, U, V, μs, νs, maxμs, maxνs, τ, false, tolreorth, debug)
-
     # Iteration count
-    iter = nvals
+    iter = 1
 
-    # Save the estimates of the maximum angles between Lanczos vectors
-    # append!(maxμs, maxμ)
+    # Flag to carry over reorthogonalization information from one call to _biLanczosIterations! to the next
+    reorth_μ = false
 
+    # Initilize convergence flag
     hasConv = false
-    while iter <= maxiter
 
-        reorth_μ = _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxμs, maxνs, τ, reorth_μ, tolreorth, debug)
-        iter += stepsize
+    while iter < maxiter
+
+        # First time we might as well to at least nvals - 1 steps (we already did a single step as part of initializing the arrays)
+        # Make sure step size is at least one
+        # Never go beyond maxiter
+        _stepsize = iter == 1 ? max(1, nvals - 1) : min(stepsize, maxiter - iter)
+
+        # Check that the step size is always positive
+        @assert _stepsize > 0
+
+        reorth_μ = _biLanczosIterations!(A, _stepsize, αs, βs, U, V, μs, νs, maxμs, maxνs, τ, reorth_μ, tolreorth, debug)
+        iter += _stepsize
 
         # This is more expensive than necessary because we only need the last components. However, LAPACK doesn't support this.
-        UU, ss, VV = svd(Bidiagonal([αs;z], βs, :L))
+        # UU, ss, VV = svd(Bidiagonal([αs;z], βs, :L))
+        UU, ss, VV = svd(Bidiagonal(αs, βs[1:end-1], :L))
 
         debug && @show βs[end]
 
         # Test for convergence. A Ritzvalue is considered converged if
         # either the last component of the corresponding vector is (relatively)
         # small or if the last component in βs is small (or both)
+        debug && @show abs.(UU[end,:])*βs[end]
+        debug && @show abs.(VV[end,:])*βs[end]
         if all(abs.(UU[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals]) &&
            all(abs.(VV[end, 1:nvals])*βs[end] .< tolconv*ss[1:nvals])
+
             hasConv = true
             break
         end
@@ -187,7 +204,7 @@ function biLanczos(A,
         debug && @show τ
     end
     if !hasConv
-        error("no convergence")
+        # error("no convergence")
     end
 
     # Form upper bidiagonal square matrix
@@ -212,12 +229,12 @@ function biLanczos(A,
     #     end
     # end
 
-    return U, Bidiagonal(αs, βs[1:end-1], :L), V, maxμs, maxνs
+    return U, Bidiagonal(αs, βs[1:end-1], :L), V, βs[end], maxμs, maxνs
 end
 
 function _tsvd(A,
     nvals = 1;
-    maxiter = 1000,
+    maxiter = min(size(A)..., 1000),
     # The initial vector is critical in determining the output type.
     # We use the result of A*initvec to detemine the storage type for
     # the Lanczos vectors. Hence, the user would need to either
@@ -229,7 +246,7 @@ function _tsvd(A,
     stepsize = max(1, div(nvals, 10)),
     debug = false)
 
-    U, B, V, maxμs, maxνs = biLanczos(A,
+    U, B, V, βn, maxμs, maxνs = biLanczos(A,
         nvals;
         maxiter = maxiter,
         initvec = initvec,
@@ -348,7 +365,7 @@ julia> round.(s, digits=7)
 """
 tsvd(A,
     nvals = 1;
-    maxiter = 1000,
+    maxiter = min(size(A)..., 1000),
     initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
     tolconv = sqrt(eps(real(eltype(initvec)))),
     tolreorth = sqrt(eps(real(eltype(initvec)))),

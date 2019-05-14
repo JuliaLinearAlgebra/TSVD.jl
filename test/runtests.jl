@@ -10,14 +10,15 @@ using Test, TSVD, LinearAlgebra, SparseArrays
 
     mnp = round(Integer, m*n*p)
 
-    for A in (randn(m, n),
-              complex.(randn(m, n), randn(m, n)),
-              sprandn(m, n, p),
-              sparse(rand(1:m, mnp), rand(1:n, mnp), complex.(randn(mnp), randn(mnp)), m, n))
+    @testset "Matrix type is $tp" for
+        (tp, A) in (("Real dense", randn(m, n)),
+                    ("Complex dense", complex.(randn(m, n), randn(m, n))),
+                    ("Real sparse", sprandn(m, n, p)),
+                    ("Complex sparse", sparse(rand(1:m, mnp), rand(1:n, mnp), complex.(randn(mnp), randn(mnp)), m, n)))
 
         Uf, sf, Vf = svd(Array(A))
 
-        for k = 1:5
+        @testset "computing $k triplets" for k = 1:5
             U, s, V = TSVD.tsvd(A, k)
             @test norm(s - sf[1:k]) < sqrt(eps(real(eltype(A))))*mnp
             @test norm(abs.(U'Uf[:,1:k]) - I) < sqrt(eps(real(eltype(A))))*mnp
