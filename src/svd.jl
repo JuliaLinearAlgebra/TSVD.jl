@@ -385,7 +385,7 @@ function mul!(y::AbstractVector{T},
               A::AtA{T,S,V},
               x::AbstractVector{T},
               α::T = one(T),
-              β::T = zero(T)) where {T,S,V}
+              β::T = zero(T)) where {T<:Number,S,V}
     mul!(A.vector, A.matrix, x, one(T), zero(T))
     mul!(y, A.matrix', A.vector, α, β)
     return y
@@ -394,7 +394,7 @@ function mul!(y::AbstractMatrix{T},
               A::AtA{T,S,V},
               x::AbstractMatrix{T},
               α::T = one(T),
-              β::T = zero(T)) where {T,S,V}
+              β::T = zero(T)) where {T<:Number,S,V}
     mul!(A.vector, A.matrix, x, one(T), zero(T))
     mul!(y, A.matrix', A.vector, α, β)
     return y

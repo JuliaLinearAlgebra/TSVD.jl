@@ -13,6 +13,7 @@ function hcat(x::Vector{T}) where T<:AbstractVecOrMat
     end
 end
 
+if VERSION < v"1.3.0-alpha.115"
 mul!(y::StridedVector{T},
      A::StridedMatrix{T},
      x::StridedVector{T},
@@ -58,6 +59,7 @@ function mul!(y::StridedVector, A::Adjoint{<:StridedMatrix}, x::StridedVector, Î
         end
     end
     return y
+end
 end
 
 function qr!(x::AbstractArray)
