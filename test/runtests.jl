@@ -34,5 +34,5 @@ end
 
 @testset "Issue 9" begin
     data = rand(1:100, 50, 50)
-    @test TSVD.tsvd(data, 2)[2] ≈ svdvals(data)[1:2]
+    @test @inferred(TSVD.tsvd(data, 2))[2] ≈ svdvals(data)[1:2]
 end
