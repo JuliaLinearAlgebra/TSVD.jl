@@ -346,16 +346,20 @@ julia> round.(s, digits=7)
   506.0414587
 ```
 """
-tsvd(A,
+function tsvd(
+    A,
     nvals = 1;
     maxiter = 1000,
     initvec = convert(Vector{float(eltype(A))}, randn(size(A,1))),
     tolconv = sqrt(eps(real(eltype(initvec)))),
     tolreorth = sqrt(eps(real(eltype(initvec)))),
     stepsize = max(1, div(nvals, 10)),
-    debug = false) =
-        _tsvd(A, nvals, maxiter = maxiter, initvec = initvec, tolconv = tolconv,
-            tolreorth = tolreorth, debug = debug)[1:3]
+    debug = false)
+
+    result = _tsvd(A, nvals, maxiter = maxiter, initvec = initvec, tolconv = tolconv,
+            tolreorth = tolreorth, debug = debug)
+    return (result[1], result[2], result[3])
+end
 
 
 ### SVD by Lanczos on A'A
