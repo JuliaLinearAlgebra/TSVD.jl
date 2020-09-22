@@ -313,7 +313,7 @@ The output of the procesure it the truple tuple `(U, s, V)`
 # Examples
 
 ```jldoctest
-julia> A = matrixdepot("LPnetlib/lp_osa_30", :r)
+julia> A = matrixdepot("LPnetlib/lp_osa_30")
 4350×104374 SparseArrays.SparseMatrixCSC{Float64,Int64} with 604488 stored entries:
   [1     ,      1]  =  1.0
   [2     ,      2]  =  1.0

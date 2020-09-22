@@ -2,25 +2,24 @@ language: julia
 
 os:
   - linux
-  - osx
+  # - osx
 
 julia:
   - 1.0
   - 1
   - nightly
 
-matrix:
-  allow_failures:
-    - julia: nightly
-
 after_success:
   - julia --project=coverage/ -e 'using Pkg; Pkg.instantiate()'
   - julia --project=coverage/ coverage/coverage.jl
 
 jobs:
+  allow_failures:
+    - julia: nightly
+
   include:
     - stage: "Deploy docs"
-      julia: 1.0
+      julia: 1
       os: linux
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.instantiate()'
