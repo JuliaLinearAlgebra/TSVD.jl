@@ -1,14 +1,9 @@
-if Base.HOME_PROJECT[] !== nothing
-    # JuliaLang/julia/pull/28625
-    Base.HOME_PROJECT[] = abspath(Base.HOME_PROJECT[])
-end
+push!(LOAD_PATH,"../src/")
 
 using Documenter, TSVD
 
-makedocs()
+makedocs(sitename="TSVD Documentation")
 
 deploydocs(
-    deps   = Deps.pip("mkdocs==0.17.5", "python-markdown-math", "mkdocs-material==2.9.4"),
     repo = "github.com/andreasnoack/TSVD.jl.git",
-    julia  = "1.0"
 )

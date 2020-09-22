@@ -6,7 +6,7 @@ CurrentModule = TSVD
 DocTestSetup = quote
     using MatrixDepot, TSVD
     try
-        matrixdepot("LPnetlib/lp_osa_30", :get)
+        matrixdepot("LPnetlib/lp_osa_30")
     catch
     	nothing
     end
