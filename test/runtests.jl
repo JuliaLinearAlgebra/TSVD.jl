@@ -36,3 +36,7 @@ end
     data = rand(1:100, 50, 50)
     @test @inferred(TSVD.tsvd(data, 2))[2] ≈ svdvals(data)[1:2]
 end
+
+@testset "Issue 25. Degenerate basis" begin
+  @test tsvd([1 0 ; 0 1], 1, initvec=[1.0; 0.0])[2] ≈ [1.0]
+end
