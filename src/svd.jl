@@ -15,7 +15,6 @@ function _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxνs, ma
     β = βs[iter]
 
     for j = iter .+ (1:stepsize)
-
         # The v step
         vOld = v
         ## apply operator
@@ -127,6 +126,11 @@ function biLanczos(A,
     v = A'initvec
     rmul!(v, inv(nrmInit))
     α = norm(v)
+    if isone(α)
+        # We need v to change when scaled with α.
+        # Otherwise the basis generation might break down.
+        α = nextfloat(α)
+    end
     rmul!(v, inv(α))
     V = fill(v, 1)
     αs = fill(α, 1)
