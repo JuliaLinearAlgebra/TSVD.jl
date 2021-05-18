@@ -4,4 +4,4 @@ MatrixDepot = "b51810bb-c9f3-55da-ae3c-350fc1fbce05"
 
 [compat]
 Documenter = "0.25"
-MatrixDepot = "0.8"
+MatrixDepot = "1"
