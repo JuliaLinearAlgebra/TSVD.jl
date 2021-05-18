@@ -318,31 +318,13 @@ The output of the procesure it the truple tuple `(U, s, V)`
 
 ```jldoctest
 julia> A = matrixdepot("LPnetlib/lp_osa_30")
-4350×104374 SparseArrays.SparseMatrixCSC{Float64,Int64} with 604488 stored entries:
-  [1     ,      1]  =  1.0
-  [2     ,      2]  =  1.0
-  [3     ,      3]  =  1.0
-  [4     ,      4]  =  1.0
-  [5     ,      5]  =  1.0
-  [6     ,      6]  =  1.0
-  [7     ,      7]  =  1.0
-  [8     ,      8]  =  1.0
-  [9     ,      9]  =  1.0
-  ⋮
-  [4343  , 104373]  =  1.0
-  [4348  , 104373]  =  1.0
-  [4349  , 104373]  =  4.5314
-  [4268  , 104374]  =  1.0
-  [4285  , 104374]  =  3.1707
-  [4319  , 104374]  =  3.1707
-  [4340  , 104374]  =  1.0
-  [4348  , 104374]  =  1.0
-  [4349  , 104374]  =  3.1707
+4350×104374 SparseArrays.SparseMatrixCSC{Float64, Int64} with 604488 stored entries:
+⠙⠮⠷⠶⠽⠶⠽⠶⠮⠷⠮⠷⠶⠽⠶⠽⠶⠬⠷⠮⠷⠦⠽⠶⠽⠶⠽⠶⠮⠷⠮⠷⠶⠽⠶⠽⠶⠭⠷⠦
 
 julia> U, s, V = tsvd(A, 5);
 
 julia> round.(s, digits=7)
-5-element Array{Float64,1}:
+5-element Vector{Float64}:
  1365.8944098
  1033.2125634
   601.3524529

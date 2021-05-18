@@ -59,8 +59,13 @@ jobs:
             Pkg.instantiate()'
       - run: |
           julia --project=docs -e '
-            using Documenter: doctest
+            using Documenter: doctest, DocMeta
             using TSVD
+            DocMeta.setdocmeta!(
+              TSVD,
+              :DocTestSetup,
+              :(using TSVD, MatrixDepot);
+              recursive=true)
             doctest(TSVD)'
       - run: julia --project=docs docs/make.jl
         env:
