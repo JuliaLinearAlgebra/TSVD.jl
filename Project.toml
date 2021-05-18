@@ -1,6 +1,6 @@
 name = "TSVD"
 uuid = "9449cd9e-2762-5aa3-a617-5413e99d722e"
-version = "0.4.2"
+version = "0.4.3"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
