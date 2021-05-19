@@ -9,5 +9,5 @@ DocMeta.setdocmeta!(
 makedocs(sitename="TSVD Documentation")
 
 deploydocs(
-    repo = "github.com/andreasnoack/TSVD.jl.git",
+    repo = "github.com/JuliaLinearAlgebra/TSVD.jl.git",
 )
