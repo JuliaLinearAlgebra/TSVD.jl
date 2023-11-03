@@ -54,7 +54,7 @@ function _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxνs, ma
             α = norm(v)
 
             if α < τ * maximum(size(A)) * eps()  # orthogonalization failed, see https://github.com/poulson/PROPACK/blob/2465f89d5b1fba56de71c3e69e27d017c3dc2295/double/dlanbpro.F#L384
-                @warn "Restart orthogonalization"
+                debug && println("Restart orthogonalization")
                 b = V[1:(j-1)]
                 B = KrylovKit.OrthonormalBasis(b ./ norm.(b))
                 for _ in 1:3
