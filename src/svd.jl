@@ -1,3 +1,5 @@
+using KrylovKit
+using Random: rand!
 function _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxνs, maxμs, τ, reorth_in, tolreorth, debug)
 
     m, n = size(A)
@@ -50,6 +52,20 @@ function _biLanczosIterations!(A, stepsize, αs, βs, U, V, μs, νs, maxνs, ma
                 nReorthVecs += 1
             end
             α = norm(v)
+
+            if α < τ * maximum(size(A)) * eps()  # orthogonalization failed, see https://github.com/poulson/PROPACK/blob/2465f89d5b1fba56de71c3e69e27d017c3dc2295/double/dlanbpro.F#L384
+                debug && println("Restart orthogonalization")
+                b = V[1:(j-1)]
+                B = KrylovKit.OrthonormalBasis(b ./ norm.(b))
+                for _ in 1:3
+                    v = rand!(v) * 2 .- 1
+                    KrylovKit.orthonormalize!(v, B, KrylovKit.ModifiedGramSchmidt())
+                    α = norm(v)
+                    if !(α < τ * maximum(size(A)) * eps())
+                        break
+                    end
+                end
+            end
         end
 
         ## update the result vectors
